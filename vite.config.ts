@@ -1,0 +1,3 @@
+import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
+export default defineConfig({base:'/Property-PhotoSheet/',plugins:[VitePWA({registerType:'autoUpdate',includeAssets:['icon.svg','apple-touch-icon.png'],manifest:{name:'Property PhotoSheet – Ingatlan Fotólap',short_name:'Fotólap',lang:'hu',description:'Offline fotólap-készítő ingatlan-értékbecsléshez',theme_color:'#234b34',background_color:'#f4f5f1',display:'standalone',orientation:'portrait-primary',start_url:'./',icons:[{src:'pwa-192.png',sizes:'192x192',type:'image/png'},{src:'pwa-512.png',sizes:'512x512',type:'image/png'},{src:'pwa-512.png',sizes:'512x512',type:'image/png',purpose:'maskable'}]},workbox:{globPatterns:['**/*.{js,css,html,svg,png}'],cleanupOutdatedCaches:true}})]});
