@@ -94,17 +94,18 @@
     <button id="previewPdf" class="btn outline" type="button">👁 Előnézet</button>
     <button id="savePdf" class="btn dark" type="button">⬇ PDF mentése</button>
     <span id="status" class="status" aria-live="polite"></span>
+    <button id="newWork" class="btn danger new-work" type="button">＋ Új munka</button>
   </section>
 </main>
 <dialog id="orderDialog" class="order-dialog" aria-labelledby="orderTitle">
   <div class="dialog-toolbar">
     <div>
       <strong id="orderTitle">Képek sorrendjének szerkesztése</strong>
-      <span class="dialog-hint">Húzd a képeket a kívánt helyre, vagy használd a nyilakat.</span>
+      <span class="dialog-hint">Húzd a képeket a kívánt helyre. Érintőképernyőn használd a nyilakat.</span>
     </div>
     <button id="closeOrderEditor" class="btn light" type="button">Kész</button>
   </div>
-  <div class="order-dialog-content">
+  <div id="orderDialogContent" class="order-dialog-content">
     <div id="miniPreview" class="mini-preview order-grid"></div>
   </div>
 </dialog>

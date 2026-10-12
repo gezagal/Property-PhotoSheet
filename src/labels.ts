@@ -74,7 +74,6 @@ export const BUILT_IN_LABELS = [
   'Pince',
   'Radiátor',
   'Szoba',
-  'Szoba 1',
   'Szoba 2',
   'Szoba 3',
   'Szoba 4',

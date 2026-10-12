@@ -59,6 +59,7 @@ const toast = byId('toast');
 const previewDialog = byId<HTMLDialogElement>('previewDialog');
 const previewPages = byId('previewPages');
 const orderDialog = byId<HTMLDialogElement>('orderDialog');
+const orderDialogContent = byId('orderDialogContent');
 const labelsDialog = byId<HTMLDialogElement>('labelsDialog');
 const templatesDialog = byId<HTMLDialogElement>('templatesDialog');
 const customLabelInput = byId<HTMLInputElement>('customLabelInput');
@@ -71,6 +72,7 @@ const builtInLabels = byId('builtInLabels');
 const saveSessionButton = byId<HTMLButtonElement>('saveSession');
 const openOrderEditorButton = byId<HTMLButtonElement>('openOrderEditor');
 const clearPhotosButton = byId<HTMLButtonElement>('clearPhotos');
+const newWorkButton = byId<HTMLButtonElement>('newWork');
 const loadingOverlay = byId('loadingOverlay');
 const loadingProgress = byId('loadingProgress');
 const photoUploadCard = byId('photoUploadCard');
@@ -91,8 +93,13 @@ let saveTimer = 0;
 let toastTimer = 0;
 let draggedPhotoId: string | null = null;
 let draggedTemplateItem: { name: TemplateName; index: number } | null = null;
+let orderAutoScrollFrame = 0;
+let orderAutoScrollSpeed = 0;
 let deferredInstall: BeforeInstallPromptEvent | null = null;
 let lockedScrollPosition = 0;
+
+const ORDER_AUTO_SCROLL_ZONE = 140;
+const ORDER_AUTO_SCROLL_MAX_SPEED = 22;
 
 function currentSession(): SessionData {
   return {
@@ -295,6 +302,38 @@ function movePhoto(fromIndex: number, toIndex: number): void {
   scheduleSave();
 }
 
+function stopOrderAutoScroll(): void {
+  orderAutoScrollSpeed = 0;
+  if (orderAutoScrollFrame) cancelAnimationFrame(orderAutoScrollFrame);
+  orderAutoScrollFrame = 0;
+}
+
+function runOrderAutoScroll(): void {
+  if (!orderAutoScrollSpeed || !orderDialog.open) {
+    stopOrderAutoScroll();
+    return;
+  }
+  orderDialogContent.scrollTop += orderAutoScrollSpeed;
+  orderAutoScrollFrame = requestAnimationFrame(runOrderAutoScroll);
+}
+
+function updateOrderAutoScroll(pointerY: number): void {
+  const bounds = orderDialogContent.getBoundingClientRect();
+  let speed = 0;
+
+  if (pointerY < bounds.top + ORDER_AUTO_SCROLL_ZONE) {
+    const intensity = Math.min(1, (bounds.top + ORDER_AUTO_SCROLL_ZONE - pointerY) / ORDER_AUTO_SCROLL_ZONE);
+    speed = -Math.ceil(4 + intensity * (ORDER_AUTO_SCROLL_MAX_SPEED - 4));
+  } else if (pointerY > bounds.bottom - ORDER_AUTO_SCROLL_ZONE) {
+    const intensity = Math.min(1, (pointerY - (bounds.bottom - ORDER_AUTO_SCROLL_ZONE)) / ORDER_AUTO_SCROLL_ZONE);
+    speed = Math.ceil(4 + intensity * (ORDER_AUTO_SCROLL_MAX_SPEED - 4));
+  }
+
+  orderAutoScrollSpeed = speed;
+  if (speed && !orderAutoScrollFrame) orderAutoScrollFrame = requestAnimationFrame(runOrderAutoScroll);
+  if (!speed) stopOrderAutoScroll();
+}
+
 function createRowButton(
   symbol: string,
   label: string,
@@ -406,7 +445,25 @@ function renderPhotos(): void {
       createRowButton('↑', 'Feljebb', index, () => movePhoto(index, index - 1), index === 0),
       createRowButton('↓', 'Lejjebb', index, () => movePhoto(index, index + 1), index === photos.length - 1),
     );
-    previewItem.append(previewImage, badge, previewActions);
+    const deletePreviewButton = document.createElement('button');
+    deletePreviewButton.type = 'button';
+    deletePreviewButton.className = 'mini-preview-delete';
+    deletePreviewButton.textContent = '✕';
+    deletePreviewButton.title = 'Kép törlése';
+    deletePreviewButton.draggable = false;
+    deletePreviewButton.setAttribute('aria-label', `Törlés: ${index + 1}. fotó`);
+    deletePreviewButton.addEventListener('pointerdown', (event) => event.stopPropagation());
+    deletePreviewButton.addEventListener('dragstart', (event) => event.preventDefault());
+    deletePreviewButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!window.confirm(`Biztosan törlöd a(z) ${index + 1}. képet?`)) return;
+      photos.splice(index, 1);
+      renderPhotos();
+      scheduleSave();
+      notify('Kép törölve.');
+      if (!photos.length) orderDialog.close();
+    });
+    previewItem.append(previewImage, badge, previewActions, deletePreviewButton);
     previewItem.addEventListener('dragstart', (event) => {
       draggedPhotoId = photo.id;
       previewItem.classList.add('dragging');
@@ -428,11 +485,13 @@ function renderPhotos(): void {
     });
     previewItem.addEventListener('drop', (event) => {
       event.preventDefault();
+      stopOrderAutoScroll();
       previewItem.classList.remove('drag-over');
       const sourceId = event.dataTransfer?.getData('text/plain') || draggedPhotoId;
       movePhoto(photos.findIndex((item) => item.id === sourceId), index);
     });
     previewItem.addEventListener('dragend', () => {
+      stopOrderAutoScroll();
       draggedPhotoId = null;
       previewItem.classList.remove('dragging');
       miniPreview.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
@@ -898,6 +957,34 @@ saveSessionButton.addEventListener('click', () => {
   }
 });
 
+newWorkButton.addEventListener('click', async () => {
+  const hasCurrentWork = Boolean(addressInput.value.trim() || hrszInput.value.trim() || photos.length);
+  if (!hasCurrentWork) {
+    notify('Nincs törölhető aktuális munka.');
+    return;
+  }
+
+  const confirmed = window.confirm(
+    'Biztosan új munkát kezdesz?\n\nHa a jelenlegi munkát nem mentetted el, minden adat és kép végleg elvész.',
+  );
+  if (!confirmed) return;
+
+  window.clearTimeout(saveTimer);
+  addressInput.value = '';
+  hrszInput.value = '';
+  photoInput.value = '';
+  photos = [];
+  renderPhotos();
+
+  try {
+    await saveLocal(currentSession());
+    notify('Új munka létrehozva.');
+    addressInput.focus();
+  } catch (error) {
+    notify(`Az új munka helyi mentése sikertelen: ${errorMessage(error)}`);
+  }
+});
+
 byId('loadSession').addEventListener('click', async () => {
   const pickerWindow = window as FilePickerWindow;
   if (!pickerWindow.showOpenFilePicker) {
@@ -942,6 +1029,15 @@ byId('savePdfFromPreview').addEventListener('click', () => {
 
 openOrderEditorButton.addEventListener('click', () => openDialog(orderDialog));
 byId('closeOrderEditor').addEventListener('click', () => orderDialog.close());
+orderDialog.addEventListener('dragover', (event) => {
+  if (!draggedPhotoId) return;
+  event.preventDefault();
+  updateOrderAutoScroll(event.clientY);
+});
+orderDialog.addEventListener('dragleave', (event) => {
+  if (!orderDialog.contains(event.relatedTarget as Node | null)) stopOrderAutoScroll();
+});
+orderDialog.addEventListener('drop', stopOrderAutoScroll);
 clearPhotosButton.addEventListener('click', () => {
   if (!photos.length || !window.confirm(`Biztosan törlöd mind a(z) ${photos.length} képet?`)) return;
   photos = [];
@@ -1005,6 +1101,7 @@ byId('resetTemplate').addEventListener('click', () => {
 [orderDialog, previewDialog, labelsDialog, templatesDialog].forEach((dialog) => {
   dialog.addEventListener('close', unlockPageScroll);
 });
+orderDialog.addEventListener('close', stopOrderAutoScroll);
 
 addressInput.addEventListener('input', () => {
   updateStatus();
