@@ -55,7 +55,7 @@ A repository gyökerében található `netlify.toml` rögzíti a szükséges be�
 ### A meglévő Netlify projekt összekötése GitHubbal
 
 1. Nyisd meg a `precious-valkyrie-863b84` projektet a Netlify felületén.
-2. Nyisd meg a **Project configuration → Build & deploy → Continuous deployment → Repository** részt.
+2. Nyisd meg a **Project configuration → Developer settings → Continuous deployment → Repository** részt.
 3. Válaszd a repository csatolását vagy a jelenlegi repository módosítását.
 4. Git-szolgáltatóként válaszd a GitHubot.
 5. Ha a Netlify GitHub App még nem fér hozzá, a GitHub engedélykérő oldalán adj neki hozzáférést kizárólag a `gezagal/Property-PhotoSheet` privát repositoryhoz.
