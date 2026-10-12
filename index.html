@@ -1,23 +1,125 @@
 <!doctype html>
 <html lang="hu">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#234b34"><meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Fotólap"><link rel="icon" href="%BASE_URL%icon.svg"><link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png">
-  <title>Property PhotoSheet</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#234b34">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Fotólap">
+  <link rel="icon" href="%BASE_URL%icon.svg">
+  <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png">
+  <title>Ingatlan Fotólap Generátor</title>
 </head>
 <body>
 <main class="app">
-  <header class="app-header"><div><h1>Ingatlan Fotólap</h1><p>Gyors, helyben működő fotólap-készítő értékbecsléshez</p></div><button id="installBtn" class="btn secondary" hidden>Telepítés</button></header>
-  <section class="card form-grid"><label>Cím *<input id="address" autocomplete="street-address" placeholder="1135 Budapest, Reitter Ferenc utca 96."></label><label>Helyrajzi szám *<input id="hrsz" placeholder="27115/A/128"></label></section>
-  <section class="card">
-    <button id="pickPhotos" class="drop-zone"><strong>📷 Fotók hozzáadása</strong><span>Képek kiválasztása vagy fényképezés</span></button><input id="photoInput" type="file" accept="image/*" multiple hidden>
-    <div class="toolbar compact"><button id="flatTemplate" class="btn secondary">Lakás sablon</button><button id="houseTemplate" class="btn secondary">Ház sablon</button><button id="clearCaptions" class="btn danger">Feliratok törlése</button></div>
-    <p id="status" class="status" aria-live="polite"></p><div id="photoList" class="photo-list"></div><datalist id="captionLabels"></datalist>
+  <header class="app-header">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 64 64">
+        <path d="M9 30 32 10l23 20M17 26v28h30V26M27 54V38h10v16"/>
+        <circle cx="46" cy="17" r="5"/>
+      </svg>
+    </div>
+    <div class="header-copy">
+      <span class="eyebrow">Property PhotoSheet</span>
+      <h1>Ingatlan Fotólap Generátor <span class="version">v1.0</span></h1>
+      <p class="subtitle">Gyors, helyben működő fotólap-készítő ingatlan-értékbecsléshez</p>
+      <div class="header-features" aria-label="Fő funkciók">
+        <span>6 fotó / oldal</span>
+        <span>PDF előnézet</span>
+        <span>Offline használat</span>
+      </div>
+    </div>
+    <button id="installBtn" class="btn header-install" type="button" hidden>Telepítés</button>
+  </header>
+  <section class="card form-grid">
+    <label for="address">Ingatlan címe *
+      <input id="address" autocomplete="street-address" maxlength="240" placeholder="1135 Budapest, Reitter Ferenc utca 96-98. 1 EM./10">
+    </label>
+    <label for="hrsz">Helyrajzi szám *
+      <input id="hrsz" maxlength="80" placeholder="27115/A/128">
+    </label>
   </section>
-  <section class="card actions"><button id="saveSession" class="btn secondary">Munka exportálása</button><button id="loadSession" class="btn secondary">Munka betöltése</button><input id="sessionInput" type="file" accept="application/json,.json" hidden><button id="previewPdf" class="btn secondary">Előnézet</button><button id="savePdf" class="btn primary">PDF mentése</button></section>
-  <p class="privacy">A fotók ezen az eszközön maradnak. A munka automatikusan mentődik helyben.</p>
+  <section class="card">
+    <button id="pickPhotos" class="drop-zone" type="button">
+      <span class="camera-icon">📷</span>
+      <span>Húzza ide a fotókat, vagy <strong>kattintson a feltöltéshez</strong></span>
+      <small>JPG, PNG – több fájl egyszerre is</small>
+    </button>
+    <input id="photoInput" type="file" accept="image/*" multiple hidden>
+  </section>
+  <section class="card editor-card">
+    <div class="editor-heading">
+      <div>
+        <strong>Feliratok &amp; sorrend</strong>
+        <span class="ordering-hint">☰ sorok húzással átrendezhetők</span>
+      </div>
+      <div class="toolbar compact">
+        <button id="flatTemplate" class="btn green small" type="button">Lakás sablon</button>
+        <button id="houseTemplate" class="btn green small" type="button">Ház sablon</button>
+        <button id="manageLabels" class="btn outline small" type="button">Feliratok kezelése</button>
+        <button id="clearCaptions" class="btn danger small" type="button">Törlés</button>
+      </div>
+    </div>
+    <div class="photo-table-header">
+      <span></span><span>Fotó</span><span>Felirat (gépelés = keres)</span><span></span>
+    </div>
+    <div id="photoList" class="photo-list"></div>
+    <p class="mini-preview-label">Előnézet (sorrend):</p>
+    <div id="miniPreview" class="mini-preview"></div>
+    <datalist id="captionLabels"></datalist>
+  </section>
+  <section class="card actions">
+    <button id="saveSession" class="btn outline" type="button" disabled>💾 Mentés</button>
+    <button id="loadSession" class="btn outline" type="button">📂 Megnyitás</button>
+    <input id="sessionInput" type="file" accept=".json,application/json" hidden>
+    <button id="previewPdf" class="btn outline" type="button">👁 Előnézet</button>
+    <button id="savePdf" class="btn dark" type="button">⬇ PDF mentése</button>
+    <span id="status" class="status" aria-live="polite"></span>
+  </section>
 </main>
-<dialog id="previewDialog"><div class="dialog-toolbar"><strong>PDF-előnézet</strong><button id="closePreview" class="btn secondary">Bezárás</button></div><div id="previewPages"></div></dialog>
-<div id="toast" class="toast" role="status" aria-live="polite"></div><script type="module" src="/src/main.ts"></script>
-</body></html>
+<dialog id="previewDialog" aria-labelledby="previewTitle">
+  <div class="dialog-toolbar">
+    <strong id="previewTitle">PDF-előnézet</strong>
+    <div class="toolbar">
+      <button id="savePdfFromPreview" class="btn light" type="button">PDF mentése</button>
+      <button id="closePreview" class="btn secondary" type="button">Bezárás</button>
+    </div>
+  </div>
+  <div id="previewPages"></div>
+</dialog>
+<dialog id="labelsDialog" class="labels-dialog" aria-labelledby="labelsTitle">
+  <div class="dialog-toolbar">
+    <strong id="labelsTitle">Saját feliratok kezelése</strong>
+    <button id="closeLabels" class="btn secondary" type="button">Bezárás</button>
+  </div>
+  <div class="labels-content">
+    <p>A saját feliratok ebben a böngészőben tárolódnak, és bekerülnek az exportált munkafájlba is.</p>
+    <div class="label-add-row">
+      <label for="customLabelInput">Új felirat</label>
+      <input id="customLabelInput" maxlength="100" placeholder="pl. Napelem inverter">
+      <button id="addCustomLabel" class="btn primary" type="button">Hozzáadás</button>
+    </div>
+    <h2>Saját feliratok</h2>
+    <ul id="customLabelsList" class="custom-label-list"></ul>
+    <details>
+      <summary>Beépített feliratok megtekintése</summary>
+      <p class="built-in-note">A beépített feliratok nem törölhetők, de szabad szöveg továbbra is megadható.</p>
+      <div id="builtInLabels" class="built-in-labels"></div>
+    </details>
+  </div>
+</dialog>
+<div id="loadingOverlay" class="loading-overlay" role="status" aria-live="polite" aria-modal="true" hidden>
+  <div class="loading-panel">
+    <div class="loading-spinner" aria-hidden="true">
+      <svg class="loading-house" viewBox="0 0 64 64">
+        <path d="M10 30 32 11l22 19M17 26v27h30V26M27 53V37h10v16M43 18v-6h7v12"/>
+      </svg>
+    </div>
+    <strong>Képek betöltése…</strong>
+    <span id="loadingProgress" class="loading-progress">0 / 0</span>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
