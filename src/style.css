@@ -310,6 +310,33 @@ input::placeholder {
   font-size: .76rem;
 }
 
+.photo-upload-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.photo-upload-heading > strong {
+  color: #1a3a4a;
+  font-size: 1rem;
+}
+
+.photo-upload-toggle {
+  min-width: 128px;
+}
+
+.photo-upload-toggle span {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 1.05rem;
+}
+
+.photo-upload-card.collapsed {
+  padding-top: .7rem;
+  padding-bottom: .7rem;
+}
+
 .editor-heading {
   display: flex;
   margin-bottom: .8rem;
@@ -781,7 +808,7 @@ dialog > :not(.dialog-toolbar)::-webkit-scrollbar-thumb:hover {
 }
 
 .order-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1002,11 +1029,17 @@ summary {
   transform: translate(-50%, -10px);
 }
 
-.scroll-to-top {
+.page-scroll-nav {
   position: fixed;
   z-index: 100;
-  right: max(20px, env(safe-area-inset-right));
-  bottom: max(20px, env(safe-area-inset-bottom));
+  right: max(48px, calc(env(safe-area-inset-right) + 28px));
+  bottom: max(48px, calc(env(safe-area-inset-bottom) + 28px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.page-scroll-button {
   display: grid;
   width: 48px;
   height: 48px;
@@ -1026,23 +1059,22 @@ summary {
   transition: opacity .2s, transform .2s, background .15s;
 }
 
-.scroll-to-top:hover {
+.page-scroll-button:hover {
   background: #2d5a3d;
 }
 
-.scroll-to-top.visible {
+.page-scroll-button.visible {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0) scale(1);
 }
 
-.modal-open .scroll-to-top {
+.modal-open .page-scroll-nav {
   opacity: 0;
   pointer-events: none;
-  transform: translateY(14px) scale(.92);
 }
 
-.scroll-to-top:focus-visible {
+.page-scroll-button:focus-visible {
   outline: 3px solid #7ba58a;
   outline-offset: 3px;
 }
@@ -1131,6 +1163,11 @@ body.loading {
 }
 
 @media (max-width: 768px) {
+  .page-scroll-nav {
+    right: max(20px, env(safe-area-inset-right));
+    bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
   .app {
     padding: 1rem 10px;
   }
@@ -1288,7 +1325,7 @@ body.loading {
 
 @media print {
   .app-header,
-  .scroll-to-top {
+  .page-scroll-nav {
     display: none !important;
   }
 }

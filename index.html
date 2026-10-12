@@ -51,7 +51,13 @@
       <input id="hrsz" maxlength="80" placeholder="27115/A/128">
     </label>
   </section>
-  <section class="card">
+  <section id="photoUploadCard" class="card photo-upload-card">
+    <div class="photo-upload-heading">
+      <strong>Képek feltöltése</strong>
+      <button id="togglePhotoUpload" class="btn light photo-upload-toggle" type="button" aria-controls="pickPhotos" aria-expanded="true">
+        Összecsukás <span aria-hidden="true">⌃</span>
+      </button>
+    </div>
     <button id="pickPhotos" class="drop-zone" type="button">
       <span class="camera-icon">📷</span>
       <span>Húzza ide a fotókat, vagy <strong>kattintson a feltöltéshez</strong></span>
@@ -157,9 +163,14 @@
     </div>
   </div>
 </dialog>
-<button id="scrollToTop" class="scroll-to-top" type="button" aria-label="Ugrás az oldal tetejére" title="Ugrás az oldal tetejére">
-  ↑
-</button>
+<div class="page-scroll-nav" aria-label="Oldalnavigáció">
+  <button id="scrollToTop" class="page-scroll-button" type="button" aria-label="Ugrás az oldal tetejére" title="Ugrás az oldal tetejére">
+    ↑
+  </button>
+  <button id="scrollToBottom" class="page-scroll-button" type="button" aria-label="Ugrás az oldal aljára" title="Ugrás az oldal aljára">
+    ↓
+  </button>
+</div>
 <div id="loadingOverlay" class="loading-overlay" role="status" aria-live="polite" aria-modal="true" hidden>
   <div class="loading-panel">
     <div class="loading-spinner" aria-hidden="true">

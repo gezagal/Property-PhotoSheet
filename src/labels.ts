@@ -74,6 +74,7 @@ export const BUILT_IN_LABELS = [
   'Pince',
   'Radiátor',
   'Szoba',
+  'Szoba 1',
   'Szoba 2',
   'Szoba 3',
   'Szoba 4',
@@ -123,7 +124,15 @@ export const DEFAULT_TEMPLATES: PhotoTemplates = {
   ],
 };
 
-const collator = new Intl.Collator('hu', { sensitivity: 'base' });
+const collator = new Intl.Collator('hu', { numeric: true, sensitivity: 'base' });
+
+function searchText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLocaleLowerCase('hu')
+    .trim();
+}
 
 export function normalizeCustomLabels(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
@@ -141,6 +150,31 @@ export function normalizeCustomLabels(values: unknown): string[] {
 
 export function allLabels(customLabels: string[]): string[] {
   return normalizeCustomLabels([...BUILT_IN_LABELS, ...customLabels]);
+}
+
+export function rankLabels(labels: string[], query: string): string[] {
+  const search = searchText(query);
+  if (!search) return labels;
+
+  return labels
+    .map((label, originalIndex) => {
+      const normalized = searchText(label);
+      const matchIndex = normalized.indexOf(search);
+      const category = normalized === search ? 0 : matchIndex === 0 ? 1 : matchIndex > 0 ? 2 : 3;
+      return { category, label, matchIndex, normalized, originalIndex };
+    })
+    .sort((left, right) => {
+      if (left.category !== right.category) return left.category - right.category;
+      if (left.category === 1 && left.normalized.length !== right.normalized.length) {
+        return left.normalized.length - right.normalized.length;
+      }
+      if (left.category === 2 && left.matchIndex !== right.matchIndex) {
+        return left.matchIndex - right.matchIndex;
+      }
+      if (left.category === 3) return left.originalIndex - right.originalIndex;
+      return collator.compare(left.label, right.label);
+    })
+    .map(({ label }) => label);
 }
 
 function normalizeTemplateItems(value: unknown, fallback: string[]): string[] {

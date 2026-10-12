@@ -6,6 +6,7 @@ import {
   DEFAULT_TEMPLATES,
   normalizeCustomLabels,
   normalizeTemplates,
+  rankLabels,
   type PhotoTemplates,
   type TemplateName,
 } from './labels';
@@ -72,7 +73,11 @@ const openOrderEditorButton = byId<HTMLButtonElement>('openOrderEditor');
 const clearPhotosButton = byId<HTMLButtonElement>('clearPhotos');
 const loadingOverlay = byId('loadingOverlay');
 const loadingProgress = byId('loadingProgress');
+const photoUploadCard = byId('photoUploadCard');
+const dropZone = byId<HTMLButtonElement>('pickPhotos');
+const togglePhotoUploadButton = byId<HTMLButtonElement>('togglePhotoUpload');
 const scrollToTopButton = byId<HTMLButtonElement>('scrollToTop');
+const scrollToBottomButton = byId<HTMLButtonElement>('scrollToBottom');
 const settingsButton = byId<HTMLButtonElement>('settingsButton');
 const settingsMenu = byId('settingsMenu');
 
@@ -80,6 +85,8 @@ let photos: StoredPhoto[] = [];
 let customLabels: string[] = [];
 let templates: PhotoTemplates = normalizeTemplates(undefined);
 let activeTemplate: TemplateName = 'lakás';
+let photoUploadExpanded = true;
+let previousPhotoCount = 0;
 let saveTimer = 0;
 let toastTimer = 0;
 let draggedPhotoId: string | null = null;
@@ -141,8 +148,19 @@ function openDialog(dialog: HTMLDialogElement): void {
   }
 }
 
-function updateScrollToTopButton(): void {
+function updatePageScrollButtons(): void {
+  const maximumScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
   scrollToTopButton.classList.toggle('visible', window.scrollY > 240);
+  scrollToBottomButton.classList.toggle('visible', window.scrollY < maximumScroll - 240);
+}
+
+function renderPhotoUploadSection(): void {
+  photoUploadCard.classList.toggle('collapsed', !photoUploadExpanded);
+  dropZone.hidden = !photoUploadExpanded;
+  togglePhotoUploadButton.setAttribute('aria-expanded', String(photoUploadExpanded));
+  togglePhotoUploadButton.innerHTML = photoUploadExpanded
+    ? 'Összecsukás <span aria-hidden="true">⌃</span>'
+    : 'Kinyitás <span aria-hidden="true">⌄</span>';
 }
 
 function errorMessage(error: unknown): string {
@@ -206,11 +224,27 @@ function safeSession(value: unknown, fallbackTemplates: PhotoTemplates = templat
   };
 }
 
-function fileName(): string {
-  return (formatAddress(addressInput.value) || 'ingatlan')
-    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+function safeFileNamePart(value: string, fallback: string, maximumLength: number): string {
+  const sanitized = value
+    .normalize('NFC')
     .trim()
-    .replace(/\s+/g, '_');
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^[._ ]+|[._ ]+$/g, '')
+    .slice(0, maximumLength)
+    .replace(/[._ ]+$/g, '');
+  return sanitized || fallback;
+}
+
+function fileName(): string {
+  return safeFileNamePart(formatAddress(addressInput.value), 'ingatlan', 140);
+}
+
+function pdfFileName(): string {
+  const address = fileName();
+  const propertyNumber = safeFileNamePart(hrszInput.value, 'hrsz', 70);
+  return `${address}_${propertyNumber}_fotolap.pdf`;
 }
 
 function validateDetails(): void {
@@ -225,6 +259,13 @@ function validateDocument(): void {
 }
 
 function updateStatus(): void {
+  if (!photos.length) {
+    photoUploadExpanded = true;
+  } else if (previousPhotoCount === 0) {
+    photoUploadExpanded = false;
+  }
+  previousPhotoCount = photos.length;
+  renderPhotoUploadSection();
   statusElement.textContent = photos.length
     ? `${photos.length} fotó betöltve`
     : '';
@@ -232,6 +273,7 @@ function updateStatus(): void {
   saveSessionButton.disabled = !addressInput.value.trim() || !hrszInput.value.trim();
   openOrderEditorButton.disabled = photos.length < 2;
   clearPhotosButton.disabled = photos.length === 0;
+  requestAnimationFrame(updatePageScrollButtons);
 }
 
 function movePhoto(fromIndex: number, toIndex: number): void {
@@ -300,7 +342,9 @@ function renderPhotos(): void {
     input.maxLength = 160;
     input.value = photo.caption;
     input.setAttribute('aria-label', `${index + 1}. fotó felirata`);
+    input.addEventListener('focus', () => renderLabelOptions(input.value));
     input.addEventListener('input', () => {
+      renderLabelOptions(input.value);
       photo.caption = input.value;
       image.alt = photo.caption || `${index + 1}. fotó`;
       if (previewBadge) previewBadge.textContent = `${index + 1}. ${photo.caption || '–'}`;
@@ -406,9 +450,9 @@ function renderPhotos(): void {
   updateStatus();
 }
 
-function renderLabelOptions(): void {
+function renderLabelOptions(query = ''): void {
   captionLabels.replaceChildren(
-    ...allLabels(customLabels).map((label) => {
+    ...rankLabels(allLabels(customLabels), query).map((label) => {
       const option = document.createElement('option');
       option.value = label;
       return option;
@@ -520,7 +564,9 @@ function renderTemplateEditor(): void {
     input.maxLength = 100;
     input.setAttribute('list', 'captionLabels');
     input.setAttribute('aria-label', `${templateTitle} ${index + 1}. eleme`);
+    input.addEventListener('focus', () => renderLabelOptions(input.value));
     input.addEventListener('input', () => {
+      renderLabelOptions(input.value);
       items[index] = input.value.slice(0, 100);
       try {
         saveTemplates(templates);
@@ -696,7 +742,7 @@ async function savePdf(): Promise<void> {
     statusElement.textContent = 'PDF készítése...';
     statusElement.className = 'status working';
     const document = await buildPdf(currentSession());
-    document.save(`${fileName()}_fotolap.pdf`);
+    document.save(pdfFileName());
     statusElement.textContent = `PDF elkészült (${Math.ceil(photos.length / 6)} oldal).`;
     statusElement.className = 'status success';
   } catch (error) {
@@ -806,12 +852,16 @@ async function restoreLocalState(): Promise<void> {
 }
 
 byId('pickPhotos').addEventListener('click', () => photoInput.click());
+togglePhotoUploadButton.addEventListener('click', () => {
+  photoUploadExpanded = !photoUploadExpanded;
+  renderPhotoUploadSection();
+  requestAnimationFrame(updatePageScrollButtons);
+});
 photoInput.addEventListener('change', async () => {
   if (photoInput.files) await addFiles(photoInput.files);
   photoInput.value = '';
 });
 
-const dropZone = byId('pickPhotos');
 dropZone.addEventListener('dragover', (event) => {
   event.preventDefault();
   dropZone.classList.add('drag');
@@ -986,14 +1036,21 @@ installButton.addEventListener('click', async () => {
   }
 });
 
-window.addEventListener('scroll', updateScrollToTopButton, { passive: true });
+window.addEventListener('scroll', updatePageScrollButtons, { passive: true });
+window.addEventListener('resize', updatePageScrollButtons, { passive: true });
 scrollToTopButton.addEventListener('click', () => {
   window.scrollTo({
     top: 0,
     behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
   });
 });
-updateScrollToTopButton();
+scrollToBottomButton.addEventListener('click', () => {
+  window.scrollTo({
+    top: document.documentElement.scrollHeight,
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+  });
+});
+updatePageScrollButtons();
 
 const updateServiceWorker = registerSW({
   immediate: true,
