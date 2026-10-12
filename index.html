@@ -29,7 +29,19 @@
         <span>Offline használat</span>
       </div>
     </div>
-    <button id="installBtn" class="btn header-install" type="button" hidden>Telepítés</button>
+    <div class="header-actions">
+      <a class="btn header-guide" href="%BASE_URL%user-guide.html" target="_blank" rel="noopener">Használati útmutató</a>
+      <div class="settings-wrapper">
+        <button id="settingsButton" class="btn header-settings" type="button" aria-expanded="false" aria-controls="settingsMenu">
+          Beállítások <span aria-hidden="true">▾</span>
+        </button>
+        <div id="settingsMenu" class="settings-menu" hidden>
+          <button id="manageLabels" type="button">Feliratok kezelése</button>
+          <button id="manageTemplates" type="button">Sablonok kezelése</button>
+        </div>
+      </div>
+      <button id="installBtn" class="btn header-install" type="button" hidden>Telepítés</button>
+    </div>
   </header>
   <section class="card form-grid">
     <label for="address">Ingatlan címe *
@@ -56,16 +68,17 @@
       <div class="toolbar compact">
         <button id="flatTemplate" class="btn green small" type="button">Lakás sablon</button>
         <button id="houseTemplate" class="btn green small" type="button">Ház sablon</button>
-        <button id="manageLabels" class="btn outline small" type="button">Feliratok kezelése</button>
-        <button id="clearCaptions" class="btn danger small" type="button">Törlés</button>
+        <button id="clearCaptions" class="btn danger small" type="button">Feliratok törlése</button>
       </div>
     </div>
     <div class="photo-table-header">
       <span></span><span>Fotó</span><span>Felirat (gépelés = keres)</span><span></span>
     </div>
     <div id="photoList" class="photo-list"></div>
-    <p class="mini-preview-label">Előnézet (sorrend):</p>
-    <div id="miniPreview" class="mini-preview"></div>
+    <div class="photo-bulk-actions">
+      <button id="openOrderEditor" class="btn outline" type="button">↕ Sorrend szerkesztése</button>
+      <button id="clearPhotos" class="btn danger" type="button">✕ Képek törlése</button>
+    </div>
     <datalist id="captionLabels"></datalist>
   </section>
   <section class="card actions">
@@ -77,6 +90,18 @@
     <span id="status" class="status" aria-live="polite"></span>
   </section>
 </main>
+<dialog id="orderDialog" class="order-dialog" aria-labelledby="orderTitle">
+  <div class="dialog-toolbar">
+    <div>
+      <strong id="orderTitle">Képek sorrendjének szerkesztése</strong>
+      <span class="dialog-hint">Húzd a képeket a kívánt helyre, vagy használd a nyilakat.</span>
+    </div>
+    <button id="closeOrderEditor" class="btn light" type="button">Kész</button>
+  </div>
+  <div class="order-dialog-content">
+    <div id="miniPreview" class="mini-preview order-grid"></div>
+  </div>
+</dialog>
 <dialog id="previewDialog" aria-labelledby="previewTitle">
   <div class="dialog-toolbar">
     <strong id="previewTitle">PDF-előnézet</strong>
@@ -108,6 +133,33 @@
     </details>
   </div>
 </dialog>
+<dialog id="templatesDialog" class="templates-dialog" aria-labelledby="templatesTitle">
+  <div class="dialog-toolbar">
+    <div>
+      <strong id="templatesTitle">Sablonok kezelése</strong>
+      <span class="dialog-hint">Szerkeszd a feliratokat, a ⠿ fogantyú húzásával pedig állítsd be a sorrendjüket.</span>
+    </div>
+    <button id="closeTemplates" class="btn light" type="button">Kész</button>
+  </div>
+  <div class="templates-content">
+    <div class="template-tabs" role="tablist" aria-label="Sablon kiválasztása">
+      <button id="apartmentTemplateTab" class="template-tab active" type="button" role="tab" aria-selected="true" data-template="lakás">Lakás sablon</button>
+      <button id="houseTemplateTab" class="template-tab" type="button" role="tab" aria-selected="false" data-template="ház">Ház sablon</button>
+    </div>
+    <div class="template-summary">
+      <strong id="templateTabTitle">Lakás sablon</strong>
+      <span id="templateItemCount"></span>
+    </div>
+    <div id="templateItems" class="template-items"></div>
+    <div class="template-actions">
+      <button id="addTemplateItem" class="btn primary" type="button">+ Új elem</button>
+      <button id="resetTemplate" class="btn danger" type="button">Alapértelmezett visszaállítása</button>
+    </div>
+  </div>
+</dialog>
+<button id="scrollToTop" class="scroll-to-top" type="button" aria-label="Ugrás az oldal tetejére" title="Ugrás az oldal tetejére">
+  ↑
+</button>
 <div id="loadingOverlay" class="loading-overlay" role="status" aria-live="polite" aria-modal="true" hidden>
   <div class="loading-panel">
     <div class="loading-spinner" aria-hidden="true">

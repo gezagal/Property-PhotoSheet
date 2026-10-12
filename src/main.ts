@@ -1,12 +1,22 @@
 import './style.css';
 import { registerSW } from 'virtual:pwa-register';
-import { allLabels, BUILT_IN_LABELS, normalizeCustomLabels, TEMPLATES } from './labels';
+import {
+  allLabels,
+  BUILT_IN_LABELS,
+  DEFAULT_TEMPLATES,
+  normalizeCustomLabels,
+  normalizeTemplates,
+  type PhotoTemplates,
+  type TemplateName,
+} from './labels';
 import { buildPdf, formatAddress } from './pdf';
 import {
   loadCustomLabels,
   loadLocal,
+  loadTemplates,
   saveCustomLabels,
   saveLocal,
+  saveTemplates,
   type SessionData,
   type StoredPhoto,
 } from './storage';
@@ -47,29 +57,44 @@ const statusElement = byId('status');
 const toast = byId('toast');
 const previewDialog = byId<HTMLDialogElement>('previewDialog');
 const previewPages = byId('previewPages');
+const orderDialog = byId<HTMLDialogElement>('orderDialog');
 const labelsDialog = byId<HTMLDialogElement>('labelsDialog');
+const templatesDialog = byId<HTMLDialogElement>('templatesDialog');
 const customLabelInput = byId<HTMLInputElement>('customLabelInput');
 const customLabelsList = byId('customLabelsList');
+const templateItems = byId('templateItems');
+const templateTabTitle = byId('templateTabTitle');
+const templateItemCount = byId('templateItemCount');
 const captionLabels = byId<HTMLDataListElement>('captionLabels');
 const builtInLabels = byId('builtInLabels');
 const saveSessionButton = byId<HTMLButtonElement>('saveSession');
+const openOrderEditorButton = byId<HTMLButtonElement>('openOrderEditor');
+const clearPhotosButton = byId<HTMLButtonElement>('clearPhotos');
 const loadingOverlay = byId('loadingOverlay');
 const loadingProgress = byId('loadingProgress');
+const scrollToTopButton = byId<HTMLButtonElement>('scrollToTop');
+const settingsButton = byId<HTMLButtonElement>('settingsButton');
+const settingsMenu = byId('settingsMenu');
 
 let photos: StoredPhoto[] = [];
 let customLabels: string[] = [];
+let templates: PhotoTemplates = normalizeTemplates(undefined);
+let activeTemplate: TemplateName = 'lakás';
 let saveTimer = 0;
 let toastTimer = 0;
 let draggedPhotoId: string | null = null;
+let draggedTemplateItem: { name: TemplateName; index: number } | null = null;
 let deferredInstall: BeforeInstallPromptEvent | null = null;
+let lockedScrollPosition = 0;
 
 function currentSession(): SessionData {
   return {
-    version: 2,
+    version: 3,
     address: addressInput.value.trim(),
     hrsz: hrszInput.value.trim(),
     photos,
     customLabels,
+    templates: normalizeTemplates(templates),
     updatedAt: Date.now(),
   };
 }
@@ -92,6 +117,34 @@ function hideLoadingOverlay(): void {
   document.body.classList.remove('loading');
 }
 
+function lockPageScroll(): void {
+  if (document.body.classList.contains('modal-open')) return;
+  lockedScrollPosition = window.scrollY;
+  document.body.style.top = `-${lockedScrollPosition}px`;
+  document.body.classList.add('modal-open');
+}
+
+function unlockPageScroll(): void {
+  if (document.querySelector('dialog[open]')) return;
+  document.body.classList.remove('modal-open');
+  document.body.style.removeProperty('top');
+  window.scrollTo({ top: lockedScrollPosition, behavior: 'auto' });
+}
+
+function openDialog(dialog: HTMLDialogElement): void {
+  lockPageScroll();
+  try {
+    dialog.showModal();
+  } catch (error) {
+    unlockPageScroll();
+    throw error;
+  }
+}
+
+function updateScrollToTopButton(): void {
+  scrollToTopButton.classList.toggle('visible', window.scrollY > 240);
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Ismeretlen hiba történt.';
 }
@@ -111,7 +164,7 @@ function createPhotoId(): string {
     `photo_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
-function safeSession(value: unknown): SessionData {
+function safeSession(value: unknown, fallbackTemplates: PhotoTemplates = templates): SessionData {
   if (!value || typeof value !== 'object') throw new Error('Érvénytelen munkafájl.');
   const candidate = value as Partial<SessionData> & { version?: number };
 
@@ -143,11 +196,12 @@ function safeSession(value: unknown): SessionData {
   });
 
   return {
-    version: 2,
+    version: 3,
     address: candidate.address.slice(0, 240),
     hrsz: candidate.hrsz.slice(0, 80),
     photos: validPhotos,
     customLabels: normalizeCustomLabels(candidate.customLabels),
+    templates: normalizeTemplates(candidate.templates, fallbackTemplates),
     updatedAt: Date.now(),
   };
 }
@@ -176,6 +230,8 @@ function updateStatus(): void {
     : '';
   statusElement.className = photos.length ? 'status success' : 'status';
   saveSessionButton.disabled = !addressInput.value.trim() || !hrszInput.value.trim();
+  openOrderEditorButton.disabled = photos.length < 2;
+  clearPhotosButton.disabled = photos.length === 0;
 }
 
 function movePhoto(fromIndex: number, toIndex: number): void {
@@ -203,6 +259,7 @@ function createRowButton(
   index: number,
   action: () => void,
   disabled = false,
+  subject = 'fotó',
 ): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
@@ -212,7 +269,7 @@ function createRowButton(
   button.textContent = symbol;
   button.title = label;
   button.disabled = disabled;
-  button.setAttribute('aria-label', `${label}: ${index + 1}. fotó`);
+  button.setAttribute('aria-label', `${label}: ${index + 1}. ${subject}`);
   button.addEventListener('click', action);
   return button;
 }
@@ -299,7 +356,13 @@ function renderPhotos(): void {
     badge.className = 'mini-preview-badge';
     badge.textContent = `${index + 1}. ${photo.caption || '–'}`;
     previewBadge = badge;
-    previewItem.append(previewImage, badge);
+    const previewActions = document.createElement('div');
+    previewActions.className = 'mini-preview-actions';
+    previewActions.append(
+      createRowButton('↑', 'Feljebb', index, () => movePhoto(index, index - 1), index === 0),
+      createRowButton('↓', 'Lejjebb', index, () => movePhoto(index, index + 1), index === photos.length - 1),
+    );
+    previewItem.append(previewImage, badge, previewActions);
     previewItem.addEventListener('dragstart', (event) => {
       draggedPhotoId = photo.id;
       previewItem.classList.add('dragging');
@@ -339,14 +402,6 @@ function renderPhotos(): void {
   addRow.innerHTML = '<span class="add-number">+</span><span class="add-box">+</span><span>Új kép hozzáadása</span>';
   addRow.addEventListener('click', () => photoInput.click());
   photoList.append(addRow);
-
-  const addPreview = document.createElement('button');
-  addPreview.type = 'button';
-  addPreview.className = 'mini-preview-item mini-preview-add';
-  addPreview.textContent = '+';
-  addPreview.setAttribute('aria-label', 'Új kép hozzáadása');
-  addPreview.addEventListener('click', () => photoInput.click());
-  miniPreview.append(addPreview);
 
   updateStatus();
 }
@@ -423,6 +478,125 @@ function addCustomLabel(): void {
   customLabelInput.focus();
 }
 
+function persistTemplates(render = true): void {
+  templates = normalizeTemplates(templates);
+  try {
+    saveTemplates(templates);
+  } catch (error) {
+    notify(`A sablonok nem menthetők: ${errorMessage(error)}`);
+  }
+  if (render) renderTemplateEditor();
+  scheduleSave();
+}
+
+function moveTemplateItem(fromIndex: number, toIndex: number): void {
+  const items = templates[activeTemplate];
+  if (fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) return;
+  const [item] = items.splice(fromIndex, 1);
+  items.splice(toIndex, 0, item);
+  persistTemplates();
+}
+
+function renderTemplateEditor(): void {
+  const items = templates[activeTemplate];
+  const templateTitle = activeTemplate === 'lakás' ? 'Lakás sablon' : 'Ház sablon';
+  templateTabTitle.textContent = templateTitle;
+  templateItemCount.textContent = `${items.length} elem`;
+  templateItems.replaceChildren();
+
+  items.forEach((value, index) => {
+    const row = document.createElement('div');
+    row.className = 'template-item';
+
+    const number = document.createElement('span');
+    number.className = 'template-item-number';
+    number.innerHTML = `<span aria-hidden="true">⠿</span>${index + 1}`;
+    number.draggable = true;
+    number.title = 'Húzd a sorrend módosításához';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.maxLength = 100;
+    input.setAttribute('list', 'captionLabels');
+    input.setAttribute('aria-label', `${templateTitle} ${index + 1}. eleme`);
+    input.addEventListener('input', () => {
+      items[index] = input.value.slice(0, 100);
+      try {
+        saveTemplates(templates);
+      } catch (error) {
+        notify(`A sablonok nem menthetők: ${errorMessage(error)}`);
+      }
+      scheduleSave();
+    });
+    input.addEventListener('blur', () => {
+      items[index] = input.value.trim().replace(/\s+/g, ' ');
+      input.value = items[index];
+      persistTemplates(false);
+    });
+
+    number.addEventListener('dragstart', (event) => {
+      draggedTemplateItem = { name: activeTemplate, index };
+      row.classList.add('dragging');
+      event.dataTransfer?.setData('text/plain', `${activeTemplate}:${index}`);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragenter', (event) => {
+      if (!draggedTemplateItem || draggedTemplateItem.name !== activeTemplate) return;
+      event.preventDefault();
+      if (draggedTemplateItem.index !== index) row.classList.add('drag-over');
+    });
+    row.addEventListener('dragover', (event) => {
+      if (!draggedTemplateItem || draggedTemplateItem.name !== activeTemplate) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    });
+    row.addEventListener('dragleave', (event) => {
+      if (!row.contains(event.relatedTarget as Node | null)) row.classList.remove('drag-over');
+    });
+    row.addEventListener('drop', (event) => {
+      if (!draggedTemplateItem || draggedTemplateItem.name !== activeTemplate) return;
+      event.preventDefault();
+      row.classList.remove('drag-over');
+      moveTemplateItem(draggedTemplateItem.index, index);
+    });
+    number.addEventListener('dragend', () => {
+      draggedTemplateItem = null;
+      row.classList.remove('dragging');
+      templateItems.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
+    });
+
+    const controls = document.createElement('div');
+    controls.className = 'template-item-controls';
+    controls.append(
+      createRowButton('↑', 'Feljebb', index, () => moveTemplateItem(index, index - 1), index === 0, 'sablonelem'),
+      createRowButton('↓', 'Lejjebb', index, () => moveTemplateItem(index, index + 1), index === items.length - 1, 'sablonelem'),
+      createRowButton('✕', 'Törlés', index, () => {
+        items.splice(index, 1);
+        persistTemplates();
+      }, false, 'sablonelem'),
+    );
+
+    row.append(number, input, controls);
+    templateItems.append(row);
+  });
+}
+
+function selectTemplateTab(name: TemplateName): void {
+  activeTemplate = name;
+  document.querySelectorAll<HTMLButtonElement>('.template-tab').forEach((button) => {
+    const isActive = button.dataset.template === name;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', String(isActive));
+  });
+  renderTemplateEditor();
+}
+
+function closeSettingsMenu(): void {
+  settingsMenu.hidden = true;
+  settingsButton.setAttribute('aria-expanded', 'false');
+}
+
 function resizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     if (file.size > 30_000_000) {
@@ -495,9 +669,9 @@ async function addFiles(files: FileList | File[]): Promise<void> {
   if (failed) notify(`${failed} kép nem tölthető be.`);
 }
 
-function applyTemplate(name: keyof typeof TEMPLATES): void {
+function applyTemplate(name: TemplateName): void {
   photos.forEach((photo, index) => {
-    photo.caption = TEMPLATES[name][index] ?? '';
+    photo.caption = templates[name][index] ?? '';
   });
   renderPhotos();
   scheduleSave();
@@ -567,7 +741,7 @@ function showPreview(): void {
       previewPages.append(page);
     }
 
-    previewDialog.showModal();
+    openDialog(previewDialog);
   } catch (error) {
     notify(errorMessage(error));
   }
@@ -589,6 +763,8 @@ async function importSessionFile(file: File): Promise<void> {
   hrszInput.value = session.hrsz;
   photos = session.photos;
   mergeSessionLabels(session.customLabels);
+  templates = session.templates;
+  persistTemplates();
   renderPhotos();
   scheduleSave();
   notify('Munka és saját feliratok betöltve.');
@@ -603,13 +779,21 @@ async function restoreLocalState(): Promise<void> {
   }
 
   try {
+    templates = loadTemplates();
+  } catch (error) {
+    notify(errorMessage(error));
+    templates = normalizeTemplates(undefined);
+  }
+
+  try {
     const stored = await loadLocal();
     if (stored) {
-      const session = safeSession(stored);
+      const session = safeSession(stored, templates);
       addressInput.value = session.address;
       hrszInput.value = session.hrsz;
       photos = session.photos;
       customLabels = normalizeCustomLabels([...customLabels, ...session.customLabels]);
+      templates = session.templates;
     }
   } catch (error) {
     notify(`A helyi munka nem tölthető be: ${errorMessage(error)}`);
@@ -617,6 +801,7 @@ async function restoreLocalState(): Promise<void> {
 
   renderLabelOptions();
   renderCustomLabels();
+  renderTemplateEditor();
   renderPhotos();
 }
 
@@ -705,9 +890,33 @@ byId('savePdfFromPreview').addEventListener('click', () => {
   void savePdf();
 });
 
+openOrderEditorButton.addEventListener('click', () => openDialog(orderDialog));
+byId('closeOrderEditor').addEventListener('click', () => orderDialog.close());
+clearPhotosButton.addEventListener('click', () => {
+  if (!photos.length || !window.confirm(`Biztosan törlöd mind a(z) ${photos.length} képet?`)) return;
+  photos = [];
+  orderDialog.close();
+  renderPhotos();
+  scheduleSave();
+  notify('Minden kép törölve.');
+});
+
+settingsButton.addEventListener('click', (event) => {
+  event.stopPropagation();
+  const willOpen = settingsMenu.hidden;
+  settingsMenu.hidden = !willOpen;
+  settingsButton.setAttribute('aria-expanded', String(willOpen));
+});
+settingsMenu.addEventListener('click', (event) => event.stopPropagation());
+document.addEventListener('click', closeSettingsMenu);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeSettingsMenu();
+});
+
 byId('manageLabels').addEventListener('click', () => {
+  closeSettingsMenu();
   renderCustomLabels();
-  labelsDialog.showModal();
+  openDialog(labelsDialog);
   customLabelInput.focus();
 });
 byId('closeLabels').addEventListener('click', () => labelsDialog.close());
@@ -717,6 +926,34 @@ customLabelInput.addEventListener('keydown', (event) => {
     event.preventDefault();
     addCustomLabel();
   }
+});
+
+byId('manageTemplates').addEventListener('click', () => {
+  closeSettingsMenu();
+  selectTemplateTab(activeTemplate);
+  openDialog(templatesDialog);
+});
+byId('closeTemplates').addEventListener('click', () => templatesDialog.close());
+document.querySelectorAll<HTMLButtonElement>('.template-tab').forEach((button) => {
+  button.addEventListener('click', () => selectTemplateTab(button.dataset.template as TemplateName));
+});
+byId('addTemplateItem').addEventListener('click', () => {
+  templates[activeTemplate].push('');
+  persistTemplates();
+  requestAnimationFrame(() => {
+    templateItems.querySelectorAll<HTMLInputElement>('input').item(templates[activeTemplate].length - 1)?.focus();
+  });
+});
+byId('resetTemplate').addEventListener('click', () => {
+  const name = activeTemplate === 'lakás' ? 'Lakás' : 'Ház';
+  if (!window.confirm(`Biztosan visszaállítod a ${name} sablon alapértelmezett elemeit és sorrendjét?`)) return;
+  templates[activeTemplate] = [...DEFAULT_TEMPLATES[activeTemplate]];
+  persistTemplates();
+  notify(`${name} sablon visszaállítva.`);
+});
+
+[orderDialog, previewDialog, labelsDialog, templatesDialog].forEach((dialog) => {
+  dialog.addEventListener('close', unlockPageScroll);
 });
 
 addressInput.addEventListener('input', () => {
@@ -748,6 +985,15 @@ installButton.addEventListener('click', async () => {
     notify('iPhone-on: Safari → Megosztás → Főképernyőhöz adás');
   }
 });
+
+window.addEventListener('scroll', updateScrollToTopButton, { passive: true });
+scrollToTopButton.addEventListener('click', () => {
+  window.scrollTo({
+    top: 0,
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+  });
+});
+updateScrollToTopButton();
 
 const updateServiceWorker = registerSW({
   immediate: true,

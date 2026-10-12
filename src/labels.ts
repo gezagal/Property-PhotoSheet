@@ -73,6 +73,10 @@ export const BUILT_IN_LABELS = [
   'Parkoló',
   'Pince',
   'Radiátor',
+  'Szoba',
+  'Szoba 2',
+  'Szoba 3',
+  'Szoba 4',
   'Szoláris rendszer',
   'Szeméttároló',
   'Szellőztető rendszer',
@@ -90,7 +94,14 @@ export const BUILT_IN_LABELS = [
   'WC - részlet',
 ] as const;
 
-export const TEMPLATES = {
+export type TemplateName = 'lakás' | 'ház';
+
+export interface PhotoTemplates {
+  lakás: string[];
+  ház: string[];
+}
+
+export const DEFAULT_TEMPLATES: PhotoTemplates = {
   lakás: [
     'Utcakép', 'Homlokzat', 'Homlokzat', 'Jobb oldali szomszéd',
     'Jobb oldali szomszéd házszám', 'Épület bejárata', 'Bejárati előtér',
@@ -110,7 +121,7 @@ export const TEMPLATES = {
     'Gázkazán / gázcirkó', 'Termosztát', 'Radiátor',
     'Elektromos tábla / elosztószekrény', 'Villanyóra', 'Gázóra', 'Vízóra',
   ],
-} as const;
+};
 
 const collator = new Intl.Collator('hu', { sensitivity: 'base' });
 
@@ -130,4 +141,31 @@ export function normalizeCustomLabels(values: unknown): string[] {
 
 export function allLabels(customLabels: string[]): string[] {
   return normalizeCustomLabels([...BUILT_IN_LABELS, ...customLabels]);
+}
+
+function normalizeTemplateItems(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return [...fallback];
+
+  return value
+    .slice(0, 200)
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim().replace(/\s+/g, ' ').slice(0, 100));
+}
+
+export function normalizeTemplates(
+  value: unknown,
+  fallback: PhotoTemplates = DEFAULT_TEMPLATES,
+): PhotoTemplates {
+  if (!value || typeof value !== 'object') {
+    return {
+      lakás: [...fallback.lakás],
+      ház: [...fallback.ház],
+    };
+  }
+
+  const candidate = value as Partial<Record<TemplateName, unknown>>;
+  return {
+    lakás: normalizeTemplateItems(candidate.lakás, fallback.lakás),
+    ház: normalizeTemplateItems(candidate.ház, fallback.ház),
+  };
 }

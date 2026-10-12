@@ -3,15 +3,19 @@
 Telepíthető, offline használható ingatlan-fotólap készítő értékbecslésekhez.
 Windows az elsődleges célplatform, az érintőképernyős használat iPhone-on is támogatott.
 
+Felhasználói leírás: [`public/user-guide.html`](public/user-guide.html)
+
 ## Funkciók
 
 - több kép betöltése, Windowsos drag & drop vagy közvetlen fényképezés;
 - automatikus átméretezés és JPEG-tömörítés;
-- Windows alatt húzással, mobilon fel/le gombokkal használható sorrendezés;
+- külön sorrendszerkesztő ablak, Windows alatt húzással, mobilon fel/le gombokkal;
+- az összes betöltött kép egy művelettel, megerősítés után törölhető;
 - szabad, beépített és felhasználó által bővíthető képfeliratok;
 - saját feliratok tárolása a böngésző `localStorage` tárában;
 - saját feliratok hordozása az exportált JSON-munkafájlban;
-- lakás- és házsablon;
+- szerkeszthető és átrendezhető lakás- és házsablon;
+- sablonbeállítások tárolása `localStorage`-ban és hordozása a JSON-munkafájlban;
 - hat fotós A4 PDF, tördelhető feliratokkal;
 - reszponzív PDF-előnézet;
 - JSON-munkafájl import és export;
@@ -35,32 +39,9 @@ pnpm build
 pnpm preview
 ```
 
-## Alkalmazás telepítése
+## PWA telepítés
 
-Az alkalmazás PWA-ként (Progressive Web App) telepíthető. Ez nem hagyományos Windows `.exe`: ugyanaz a webalkalmazás indul el különálló, böngészőkeret nélküli ablakban.
-
-### Windows
-
-Chrome vagy Edge alatt a **Telepítés** gomb:
-
-- megnyitja a böngésző telepítési párbeszédét;
-- telepítés után elérhetővé teheti az alkalmazást a Start menüben és az asztalon;
-- külön ablakban, böngésző címsora nélkül indítja el;
-- az első sikeres betöltés után lehetővé teszi az offline használatot.
-
-### iPhone
-
-Az iOS nem engedi, hogy a weboldal közvetlenül megnyissa a telepítési párbeszédet. A **Telepítés** gomb ezért az alábbi lépéseket jelzi:
-
-1. Nyisd meg az alkalmazást Safariban.
-2. Koppints a **Megosztás** gombra.
-3. Válaszd a **Főképernyőhöz adás** lehetőséget.
-
-Ezután az alkalmazás a főképernyőn megjelenő ikonról, önálló ablakban indítható.
-
-A Telepítés gomb csak akkor jelenik meg, ha az adott böngésző telepíthetőnek ítéli az alkalmazást, illetve iPhone-on akkor, ha még nem telepített módban fut. A telepített alkalmazásban a gomb általában nem látható.
-
-A telepítés és az offline gyorsítótárazás nem tölti fel a fotókat vagy az ingatlanadatokat: ezek továbbra is az adott eszközön maradnak.
+Az alkalmazás manifestjét és service workerét a `vite-plugin-pwa` generálja. A telepítési felület a böngésző `beforeinstallprompt` eseményét használja; iOS-en a felhasználó a Safari „Főképernyőhöz adás” funkcióját használhatja. A részletes felhasználói lépések a külön használati útmutatóban találhatók.
 
 ## Netlify deploy
 

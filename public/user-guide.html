@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#234b34">
+  <title>Használati útmutató – Ingatlan Fotólap</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #1a1a1a;
+      background: #f5f5f0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.55;
+    }
+    header {
+      padding: 36px 20px;
+      color: #fff;
+      background: linear-gradient(125deg, #173a2a, #2d5a3d 55%, #1a3a4a);
+      text-align: center;
+    }
+    header h1 { margin: 0 0 6px; font-size: clamp(1.6rem, 5vw, 2.3rem); }
+    header p { margin: 0; color: #d9e4dc; }
+    main { width: min(760px, calc(100% - 24px)); margin: 24px auto 48px; }
+    section {
+      margin-bottom: 14px;
+      padding: 20px;
+      border: 1px solid #e0e0d8;
+      border-radius: 12px;
+      background: #fff;
+    }
+    h2 { margin: 0 0 10px; color: #234b34; font-size: 1.1rem; }
+    ol, ul { margin: 8px 0 0; padding-left: 22px; }
+    li + li { margin-top: 5px; }
+    strong { color: #1a3a4a; }
+    .back {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 9px 14px;
+      border-radius: 8px;
+      color: #fff;
+      background: #2d5a3d;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .note {
+      padding: 10px 12px;
+      border-left: 4px solid #2d5a3d;
+      background: #eef5f0;
+      font-size: .9rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Ingatlan Fotólap</h1>
+    <p>Rövid használati útmutató</p>
+  </header>
+  <main>
+    <section>
+      <h2>1. Adatok és fotók</h2>
+      <ol>
+        <li>Add meg az ingatlan címét és helyrajzi számát.</li>
+        <li>Húzd a képeket a feltöltőmezőre, vagy kattints a mezőre a kiválasztáshoz.</li>
+        <li>Várd meg, amíg a képfeldolgozás számlálója befejeződik.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>2. Feliratok</h2>
+      <ul>
+        <li>Írj szabad feliratot, vagy válassz a gépelés közben megjelenő listából.</li>
+        <li>A <strong>Lakás sablon</strong> és <strong>Ház sablon</strong> sorban kitölti a javasolt feliratokat.</li>
+        <li>A fejléc <strong>Beállítások → Feliratok kezelése</strong> menüpontjában saját feliratokat adhatsz a listához.</li>
+        <li>A <strong>Feliratok törlése</strong> minden képfeliratot eltávolít, de a képeket megtartja.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Lakás- és Ház sablon szerkesztése</h2>
+      <ol>
+        <li>Nyisd meg a fejléc <strong>Beállítások → Sablonok kezelése</strong> menüpontját.</li>
+        <li>Válaszd ki a <strong>Lakás sablon</strong> vagy <strong>Ház sablon</strong> tabot.</li>
+        <li>Írd át az elemek szövegét, vagy az <strong>+ Új elem</strong> gombbal bővítsd a sablont.</li>
+        <li>Windows alatt fogd meg a sor elején lévő <strong>⠿ fogantyút</strong>, és húzd az elemet a kívánt helyre. Mobilon, illetve billentyűzetes használatnál használd a fel/le gombokat.</li>
+        <li>A ✕ gombbal törölhetsz egy elemet. Az <strong>Alapértelmezett visszaállítása</strong> az aktív tab gyári sablonját állítja vissza.</li>
+        <li>A <strong>Kész</strong> gombbal zárd be az ablakot, majd a főoldalon alkalmazd a megfelelő sablongombot a fotókra.</li>
+      </ol>
+      <p class="note">A módosított sablonok automatikusan mentődnek, és a JSON munkafájlba is bekerülnek.</p>
+    </section>
+
+    <section>
+      <h2>4. Fotósorrend és képtörlés</h2>
+      <ul>
+        <li>Nyisd meg a <strong>Sorrend szerkesztése</strong> ablakot.</li>
+        <li>Windows alatt húzd a képeket a kívánt helyre; mobilon használd a fel/le nyilakat.</li>
+        <li>A <strong>Képek törlése</strong> megerősítés után az összes betöltött képet eltávolítja.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Mentés és megnyitás</h2>
+      <ul>
+        <li>A <strong>Mentés</strong> JSON munkafájlt készít a teljes munkáról.</li>
+        <li>A <strong>Megnyitás</strong> egy korábban mentett JSON munkafájlt tölt vissza.</li>
+        <li>A munka automatikusan mentődik az aktuális böngészőben is.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Előnézet és PDF</h2>
+      <ul>
+        <li>Az <strong>Előnézet</strong> megmutatja a kész dokumentum oldalait.</li>
+        <li>A <strong>PDF mentése</strong> letölti a 6 fotó/oldal elrendezésű dokumentumot.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. Telepítés és offline használat</h2>
+      <ul>
+        <li>Windows Chrome/Edge alatt használd a fejléc <strong>Telepítés</strong> gombját.</li>
+        <li>iPhone-on: Safari → Megosztás → Főképernyőhöz adás.</li>
+        <li>Az első sikeres betöltés után az alkalmazás internet nélkül is használható.</li>
+      </ul>
+      <p class="note">A fotók és az ingatlanadatok az eszközön maradnak, az alkalmazás nem tölti fel őket szerverre.</p>
+    </section>
+
+    <a class="back" href="./">← Vissza az alkalmazáshoz</a>
+  </main>
+</body>
+</html>

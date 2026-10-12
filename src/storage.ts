@@ -1,4 +1,8 @@
-import { normalizeCustomLabels } from './labels';
+import {
+  normalizeCustomLabels,
+  normalizeTemplates,
+  type PhotoTemplates,
+} from './labels';
 
 export interface StoredPhoto {
   id: string;
@@ -7,11 +11,12 @@ export interface StoredPhoto {
 }
 
 export interface SessionData {
-  version: 2;
+  version: 3;
   address: string;
   hrsz: string;
   photos: StoredPhoto[];
   customLabels: string[];
+  templates: PhotoTemplates;
   updatedAt: number;
 }
 
@@ -19,6 +24,7 @@ const DB = 'property-photosheet';
 const STORE = 'sessions';
 const SESSION_KEY = 'current';
 const LABELS_KEY = 'property-photosheet.custom-labels';
+const TEMPLATES_KEY = 'property-photosheet.templates';
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -68,4 +74,19 @@ export function loadCustomLabels(): string[] {
 
 export function saveCustomLabels(labels: string[]): void {
   localStorage.setItem(LABELS_KEY, JSON.stringify(normalizeCustomLabels(labels)));
+}
+
+export function loadTemplates(): PhotoTemplates {
+  const raw = localStorage.getItem(TEMPLATES_KEY);
+  if (!raw) return normalizeTemplates(undefined);
+
+  try {
+    return normalizeTemplates(JSON.parse(raw));
+  } catch {
+    throw new Error('A helyi sablonbeállítások sérültek.');
+  }
+}
+
+export function saveTemplates(templates: PhotoTemplates): void {
+  localStorage.setItem(TEMPLATES_KEY, JSON.stringify(normalizeTemplates(templates)));
 }
