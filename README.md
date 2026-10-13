@@ -16,7 +16,7 @@ Felhasználói leírás: [`public/user-guide.html`](public/user-guide.html)
 - saját feliratok hordozása az exportált JSON-munkafájlban;
 - szerkeszthető és átrendezhető lakás- és házsablon;
 - sablonbeállítások tárolása `localStorage`-ban és hordozása a JSON-munkafájlban;
-- hat fotós A4 PDF, tördelhető feliratokkal;
+- hat fotós A4 PDF, magyar ékezeteket támogató betűkészlettel és tördelhető feliratokkal;
 - reszponzív PDF-előnézet;
 - JSON-munkafájl import és export;
 - automatikus helyi mentés IndexedDB-be;

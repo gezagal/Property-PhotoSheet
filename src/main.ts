@@ -60,6 +60,7 @@ const previewDialog = byId<HTMLDialogElement>('previewDialog');
 const previewPages = byId('previewPages');
 const orderDialog = byId<HTMLDialogElement>('orderDialog');
 const orderDialogContent = byId('orderDialogContent');
+const selectedPhotoCount = byId('selectedPhotoCount');
 const labelsDialog = byId<HTMLDialogElement>('labelsDialog');
 const templatesDialog = byId<HTMLDialogElement>('templatesDialog');
 const customLabelInput = byId<HTMLInputElement>('customLabelInput');
@@ -92,6 +93,8 @@ let previousPhotoCount = 0;
 let saveTimer = 0;
 let toastTimer = 0;
 let draggedPhotoId: string | null = null;
+let draggedPhotoIds: string[] = [];
+const selectedPhotoIds = new Set<string>();
 let draggedTemplateItem: { name: TemplateName; index: number } | null = null;
 let orderAutoScrollFrame = 0;
 let orderAutoScrollSpeed = 0;
@@ -302,6 +305,29 @@ function movePhoto(fromIndex: number, toIndex: number): void {
   scheduleSave();
 }
 
+function movePhotoGroup(photoIds: string[], targetId: string): void {
+  const movingIds = new Set(photoIds);
+  if (!movingIds.size || movingIds.has(targetId)) return;
+
+  const movingPhotos = photos.filter((photo) => movingIds.has(photo.id));
+  const remainingPhotos = photos.filter((photo) => !movingIds.has(photo.id));
+  const targetIndex = remainingPhotos.findIndex((photo) => photo.id === targetId);
+  if (!movingPhotos.length || targetIndex < 0) return;
+
+  const reordered = [...remainingPhotos];
+  reordered.splice(targetIndex, 0, ...movingPhotos);
+  if (reordered.every((photo, index) => photo.id === photos[index]?.id)) return;
+
+  photos = reordered;
+  renderPhotos();
+  scheduleSave();
+}
+
+function updateSelectedPhotoCount(): void {
+  const count = selectedPhotoIds.size;
+  selectedPhotoCount.textContent = `${count} ${count === 1 ? 'kép kijelölve' : 'kép kijelölve'}`;
+}
+
 function stopOrderAutoScroll(): void {
   orderAutoScrollSpeed = 0;
   if (orderAutoScrollFrame) cancelAnimationFrame(orderAutoScrollFrame);
@@ -358,6 +384,11 @@ function createRowButton(
 function renderPhotos(): void {
   photoList.replaceChildren();
   miniPreview.replaceChildren();
+  const photoIds = new Set(photos.map((photo) => photo.id));
+  selectedPhotoIds.forEach((id) => {
+    if (!photoIds.has(id)) selectedPhotoIds.delete(id);
+  });
+  updateSelectedPhotoCount();
 
   for (const [index, photo] of photos.entries()) {
     const row = document.createElement('article');
@@ -404,6 +435,7 @@ function renderPhotos(): void {
 
     row.addEventListener('dragstart', (event) => {
       draggedPhotoId = photo.id;
+      draggedPhotoIds = [photo.id];
       row.classList.add('dragging');
       event.dataTransfer?.setData('text/plain', photo.id);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
@@ -421,6 +453,7 @@ function renderPhotos(): void {
     });
     row.addEventListener('dragend', () => {
       draggedPhotoId = null;
+      draggedPhotoIds = [];
       row.classList.remove('dragging');
       photoList.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
     });
@@ -447,7 +480,7 @@ function renderPhotos(): void {
     );
     const deletePreviewButton = document.createElement('button');
     deletePreviewButton.type = 'button';
-    deletePreviewButton.className = 'mini-preview-delete';
+    deletePreviewButton.className = 'mini-preview-control mini-preview-delete';
     deletePreviewButton.textContent = '✕';
     deletePreviewButton.title = 'Kép törlése';
     deletePreviewButton.draggable = false;
@@ -463,11 +496,32 @@ function renderPhotos(): void {
       notify('Kép törölve.');
       if (!photos.length) orderDialog.close();
     });
-    previewItem.append(previewImage, badge, previewActions, deletePreviewButton);
+    const selectPreviewButton = document.createElement('button');
+    selectPreviewButton.type = 'button';
+    selectPreviewButton.className = 'mini-preview-control mini-preview-select';
+    selectPreviewButton.textContent = selectedPhotoIds.has(photo.id) ? '✓' : '○';
+    selectPreviewButton.title = selectedPhotoIds.has(photo.id) ? 'Kijelölés megszüntetése' : 'Kép kijelölése';
+    selectPreviewButton.draggable = false;
+    selectPreviewButton.setAttribute('role', 'checkbox');
+    selectPreviewButton.setAttribute('aria-checked', String(selectedPhotoIds.has(photo.id)));
+    selectPreviewButton.setAttribute('aria-label', `Kijelölés: ${index + 1}. fotó`);
+    selectPreviewButton.addEventListener('pointerdown', (event) => event.stopPropagation());
+    selectPreviewButton.addEventListener('dragstart', (event) => event.preventDefault());
+    selectPreviewButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (selectedPhotoIds.has(photo.id)) selectedPhotoIds.delete(photo.id);
+      else selectedPhotoIds.add(photo.id);
+      renderPhotos();
+    });
+    if (selectedPhotoIds.has(photo.id)) previewItem.classList.add('selected');
+    previewItem.append(previewImage, badge, previewActions, deletePreviewButton, selectPreviewButton);
     previewItem.addEventListener('dragstart', (event) => {
       draggedPhotoId = photo.id;
+      draggedPhotoIds = selectedPhotoIds.has(photo.id)
+        ? photos.filter((item) => selectedPhotoIds.has(item.id)).map((item) => item.id)
+        : [photo.id];
       previewItem.classList.add('dragging');
-      event.dataTransfer?.setData('text/plain', photo.id);
+      event.dataTransfer?.setData('text/plain', JSON.stringify(draggedPhotoIds));
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     });
     previewItem.addEventListener('dragenter', (event) => {
@@ -487,12 +541,25 @@ function renderPhotos(): void {
       event.preventDefault();
       stopOrderAutoScroll();
       previewItem.classList.remove('drag-over');
-      const sourceId = event.dataTransfer?.getData('text/plain') || draggedPhotoId;
-      movePhoto(photos.findIndex((item) => item.id === sourceId), index);
+      const transferredIds = event.dataTransfer?.getData('text/plain');
+      let sourceIds = draggedPhotoIds;
+      if (!sourceIds.length && transferredIds) {
+        try {
+          const parsed: unknown = JSON.parse(transferredIds);
+          if (Array.isArray(parsed) && parsed.every((id): id is string => typeof id === 'string')) {
+            sourceIds = parsed;
+          }
+        } catch {
+          sourceIds = [transferredIds];
+        }
+      }
+      if (!sourceIds.length && draggedPhotoId) sourceIds = [draggedPhotoId];
+      movePhotoGroup(sourceIds, photo.id);
     });
     previewItem.addEventListener('dragend', () => {
       stopOrderAutoScroll();
       draggedPhotoId = null;
+      draggedPhotoIds = [];
       previewItem.classList.remove('dragging');
       miniPreview.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
     });

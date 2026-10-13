@@ -601,6 +601,11 @@ input::placeholder {
   box-shadow: 0 0 0 2px #2d5a3d;
 }
 
+.mini-preview-item.selected {
+  border-color: #2d5a3d;
+  box-shadow: 0 0 0 2px rgb(45 90 61 / 55%);
+}
+
 .mini-preview-item img {
   display: block;
   width: 100%;
@@ -760,16 +765,32 @@ dialog > :not(.dialog-toolbar)::-webkit-scrollbar-thumb:hover {
 }
 
 .preview-cell {
+  display: flex;
   min-height: 0;
-  font: 700 clamp(8px, 1.5vw, 13px) "Times New Roman", Times, serif;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+  font: 700 clamp(8px, 1.15vw, 11px) Arial, sans-serif;
   text-align: center;
 }
 
 .preview-cell img {
   width: 100%;
-  height: 82%;
+  height: 68%;
+  flex: 0 0 68%;
+  min-height: 0;
   object-fit: contain;
   background: #f0f0f0;
+}
+
+.preview-cell > div {
+  display: -webkit-box;
+  flex: 1 1 0;
+  overflow: hidden;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
 }
 
 .preview-page-number {
@@ -821,11 +842,10 @@ dialog > :not(.dialog-toolbar)::-webkit-scrollbar-thumb:hover {
   box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
 }
 
-.mini-preview-delete {
+.mini-preview-control {
   position: absolute;
   z-index: 2;
   top: 4px;
-  right: 5px;
   display: grid;
   width: 22px;
   height: 22px;
@@ -847,13 +867,31 @@ dialog > :not(.dialog-toolbar)::-webkit-scrollbar-thumb:hover {
   transition: opacity .15s, transform .15s;
 }
 
+.mini-preview-delete {
+  right: 5px;
+}
+
+.mini-preview-select {
+  left: 5px;
+  font-size: .95rem;
+}
+
+.mini-preview-select[aria-checked="true"] {
+  opacity: 1;
+}
+
 .mini-preview-delete:hover {
   background: transparent;
   opacity: 1;
   transform: scale(1.08);
 }
 
-.mini-preview-delete:focus-visible {
+.mini-preview-select:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.mini-preview-control:focus-visible {
   outline: 3px solid #f2a7ad;
   outline-offset: 2px;
   opacity: 1;
@@ -868,6 +906,10 @@ dialog > :not(.dialog-toolbar)::-webkit-scrollbar-thumb:hover {
 @media (hover: hover) and (pointer: fine) {
   .order-grid .mini-preview-actions {
     display: none;
+  }
+
+  .selection-count {
+    font-weight: 600;
   }
 
   .order-grid .mini-preview-badge {
