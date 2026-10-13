@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { SessionData, StoredPhoto } from './storage';
+import { prepareImage } from './images';
 
 const PAGE_WIDTH = 210;
 const PAGE_HEIGHT = 297;
@@ -13,19 +14,12 @@ const captionTopOffset = imageH + 3;
 const captionMaxLines = 4;
 const captionFontSize = 8;
 const fontName = 'NotoSans';
+const targetPdfBytes = 5_000_000;
+const maximumPdfBytes = 6_000_000;
 
-function contain(img: HTMLImageElement, width: number, height: number) {
-  const ratio = Math.min(width / img.naturalWidth, height / img.naturalHeight);
-  return { width: img.naturalWidth * ratio, height: img.naturalHeight * ratio };
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('Egy kép nem olvasható.'));
-    image.src = src;
-  });
+function contain(img: { width: number; height: number }, width: number, height: number) {
+  const ratio = Math.min(width / img.width, height / img.height);
+  return { width: img.width * ratio, height: img.height * ratio };
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -43,11 +37,7 @@ async function loadPdfFont(path: string): Promise<string> {
   return toBase64(new Uint8Array(await response.arrayBuffer()));
 }
 
-async function registerFonts(doc: jsPDF): Promise<void> {
-  const [regular, bold] = await Promise.all([
-    loadPdfFont('/fonts/NotoSans-Regular.ttf'),
-    loadPdfFont('/fonts/NotoSans-Bold.ttf'),
-  ]);
+function registerFonts(doc: jsPDF, [regular, bold]: [string, string]): void {
   doc.addFileToVFS('NotoSans-Regular.ttf', regular);
   doc.addFont('NotoSans-Regular.ttf', fontName, 'normal');
   doc.addFileToVFS('NotoSans-Bold.ttf', bold);
@@ -81,18 +71,18 @@ export function formatAddress(value: string): string {
   ).join(' ');
 }
 
-async function addPhoto(doc: jsPDF, photo: StoredPhoto, index: number): Promise<void> {
+async function addPhoto(doc: jsPDF, photo: StoredPhoto, index: number, imageBudget: number): Promise<void> {
   const column = index % 2;
   const row = Math.floor(index / 2);
   const x = margin + column * (cellW + gap);
   const y = top + row * rowH;
-  const image = await loadImage(photo.dataUrl);
+  const image = await prepareImage(photo.dataUrl, imageBudget);
   const size = contain(image, cellW, imageH);
 
   doc.setFillColor(242, 242, 242);
   doc.rect(x, y, cellW, imageH, 'F');
   doc.addImage(
-    photo.dataUrl,
+    image.dataUrl,
     'JPEG',
     x + (cellW - size.width) / 2,
     y + (imageH - size.height) / 2,
@@ -114,9 +104,9 @@ async function addPhoto(doc: jsPDF, photo: StoredPhoto, index: number): Promise<
   });
 }
 
-export async function buildPdf(data: SessionData): Promise<jsPDF> {
+async function buildPdfAttempt(data: SessionData, fonts: [string, string], imageBudget: number): Promise<jsPDF> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-  await registerFonts(doc);
+  registerFonts(doc, fonts);
 
   const pageCount = Math.ceil(data.photos.length / 6);
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
@@ -135,7 +125,7 @@ export async function buildPdf(data: SessionData): Promise<jsPDF> {
 
     const pagePhotos = data.photos.slice(pageIndex * 6, pageIndex * 6 + 6);
     for (let photoIndex = 0; photoIndex < pagePhotos.length; photoIndex += 1) {
-      await addPhoto(doc, pagePhotos[photoIndex], photoIndex);
+      await addPhoto(doc, pagePhotos[photoIndex], photoIndex, imageBudget);
     }
 
     doc.setFont(fontName, 'normal');
@@ -145,4 +135,19 @@ export async function buildPdf(data: SessionData): Promise<jsPDF> {
     doc.setTextColor(0);
   }
   return doc;
+}
+
+export async function buildPdf(data: SessionData): Promise<jsPDF> {
+  const fonts = await Promise.all([
+    loadPdfFont('/fonts/NotoSans-Regular.ttf'),
+    loadPdfFont('/fonts/NotoSans-Bold.ttf'),
+  ]);
+  let imageBudget = Math.floor(4_300_000 / Math.max(1, data.photos.length));
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const doc = await buildPdfAttempt(data, fonts, imageBudget);
+    const bytes = doc.output('arraybuffer').byteLength;
+    if (bytes <= targetPdfBytes || (attempt === 3 && bytes <= maximumPdfBytes)) return doc;
+    imageBudget = Math.floor(imageBudget * Math.min(0.8, targetPdfBytes / bytes * 0.85));
+  }
+  throw new Error('A PDF nem fér bele a 6 MB-os méretkorlátba. Készíts kevesebb képpel külön fotólapokat.');
 }

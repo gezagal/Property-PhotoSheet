@@ -72,11 +72,19 @@
         <span class="ordering-hint">☰ sorok húzással átrendezhetők</span>
       </div>
       <div class="toolbar compact">
+        <div class="settings-wrapper ai-suggestions-wrapper">
+          <button id="aiCaptionSuggestions" class="btn dark small" type="button" aria-expanded="false" aria-controls="aiSuggestionsMenu">AI javaslat <span aria-hidden="true">▾</span></button>
+          <div id="aiSuggestionsMenu" class="settings-menu ai-suggestions-menu" hidden>
+            <button id="suggestWithOpenAi" type="button">OpenAI (fizetős)</button>
+            <button type="button" disabled>Local AI (inaktív)</button>
+          </div>
+        </div>
         <button id="flatTemplate" class="btn green small" type="button">Lakás sablon</button>
         <button id="houseTemplate" class="btn green small" type="button">Ház sablon</button>
         <button id="clearCaptions" class="btn danger small" type="button">Feliratok törlése</button>
       </div>
     </div>
+    <p class="ai-privacy-note">Az AI-javaslat csak az üres feliratú képeket elemzi, és ezeket az OpenAI szolgáltatásához továbbítja.</p>
     <div class="photo-table-header">
       <span></span><span>Fotó</span><span>Felirat (gépelés = keres)</span><span></span>
     </div>
@@ -180,7 +188,7 @@
         <path d="M10 30 32 11l22 19M17 26v27h30V26M27 53V37h10v16M43 18v-6h7v12"/>
       </svg>
     </div>
-    <strong>Képek betöltése…</strong>
+    <strong id="loadingTitle">Képek betöltése…</strong>
     <span id="loadingProgress" class="loading-progress">0 / 0</span>
   </div>
 </div>

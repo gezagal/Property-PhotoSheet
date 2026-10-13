@@ -74,6 +74,8 @@
       <ul>
         <li>Írj szabad feliratot, vagy válassz a gépelés közben megjelenő listából. A pontos és a beírt szöveggel kezdődő találatok kerülnek előre, utánuk jelennek meg azok, amelyek máshol tartalmazzák a keresést.</li>
         <li>A <strong>Lakás sablon</strong> és <strong>Ház sablon</strong> sorban kitölti a javasolt feliratokat.</li>
+        <li>Az <strong>AI javaslat</strong> csak az üres feliratú képekhez kér feliratot; a kézi feliratokat nem módosítja. Bizonytalan találat esetén üresen hagyja a mezőt.</li>
+        <li>Az <strong>AI javaslat → OpenAI (fizetős)</strong> választás után a költségre és a képek továbbítására figyelmeztető megerősítés jelenik meg. Megszakításkor nem küldünk képet. A <strong>Local AI (inaktív)</strong> lehetőség a helyi AI bekötéséig letiltott.</li>
         <li>A fejléc <strong>Beállítások → Feliratok kezelése</strong> menüpontjában saját feliratokat adhatsz a listához.</li>
         <li>A <strong>Feliratok törlése</strong> minden képfeliratot eltávolít, de a képeket megtartja.</li>
       </ul>
@@ -119,6 +121,7 @@
       <ul>
         <li>Az <strong>Előnézet</strong> megmutatja a kész dokumentum oldalait.</li>
         <li>A <strong>PDF mentése</strong> letölti a 6 fotó/oldal elrendezésű dokumentumot.</li>
+        <li>A PDF képei automatikusan tömörítve készülnek: a cél 5 MB, a felső korlát 6 MB. Sok kép esetén a felbontás és a képminőség csökkenhet; a munkában tárolt képek nem változnak. Ha a korlát nem tartható, az alkalmazás hibát jelez.</li>
         <li>A magyar ékezetek a PDF-be ágyazott betűkészlettel jelennek meg. A hosszú képaláírások több sorba tördelődnek; a PDF-ben legfeljebb négy sor látható.</li>
         <li>A fájl neve automatikusan a <strong>&lt;cím&gt;_&lt;helyrajzi_szám&gt;_fotolap.pdf</strong> mintát követi. A fájlnévben nem használható karaktereket az alkalmazás aláhúzásra cseréli.</li>
       </ul>
@@ -132,6 +135,7 @@
         <li>Az első sikeres betöltés után az alkalmazás internet nélkül is használható.</li>
       </ul>
       <p class="note">A fotók és az ingatlanadatok az eszközön maradnak, az alkalmazás nem tölti fel őket szerverre.</p>
+      <p class="note">Kivétel: az <strong>AI javaslat → OpenAI (fizetős)</strong> kiválasztása és a figyelmeztetés jóváhagyása után az üres feliratú képek tömörített másolatai az OpenAI szolgáltatásához kerülnek elemzésre. Ehhez internetkapcsolat és a szolgáltatás üzemeltetője által konfigurált API-kulcs szükséges.</p>
     </section>
 
     <section>

@@ -10,18 +10,21 @@ Felhasználói leírás: [`public/user-guide.html`](public/user-guide.html)
 - több kép betöltése, Windowsos drag & drop vagy közvetlen fényképezés;
 - automatikus átméretezés és JPEG-tömörítés;
 - külön sorrendszerkesztő ablak, Windows alatt húzással, mobilon fel/le gombokkal;
+- kijelölt fotók csoportos áthelyezése húzással, az egymáshoz viszonyított sorrend megtartásával;
 - az összes betöltött kép egy művelettel, megerősítés után törölhető;
 - szabad, beépített és felhasználó által bővíthető képfeliratok;
+- külön AI-javaslat gomb az üres feliratú képek felismeréséhez;
 - saját feliratok tárolása a böngésző `localStorage` tárában;
 - saját feliratok hordozása az exportált JSON-munkafájlban;
 - szerkeszthető és átrendezhető lakás- és házsablon;
 - sablonbeállítások tárolása `localStorage`-ban és hordozása a JSON-munkafájlban;
 - hat fotós A4 PDF, magyar ékezeteket támogató betűkészlettel és tördelhető feliratokkal;
+- automatikus PDF-képtömörítés: 5 MB célméret, legfeljebb 6 MB; a munkában tárolt képek változatlanok maradnak;
 - reszponzív PDF-előnézet;
 - JSON-munkafájl import és export;
 - automatikus helyi mentés IndexedDB-be;
 - telepíthető és offline használható PWA;
-- minden ingatlanadat és fotó az eszközön marad.
+- az AI-feliratjavaslat kivételével minden adat és fotó az eszközön marad.
 
 ## Helyi fejlesztés
 
@@ -68,9 +71,34 @@ Ezután minden `main` branchre pusholt commit automatikus production deployt ind
 
 Privát repository esetén normál esetben nincs szükség külön deploy keyre: a Netlify GitHub App kap olvasási jogosultságot. Deploy key csak privát Git submodule vagy speciális hozzáférési helyzet esetén szükséges.
 
+### AI-feliratjavaslat
+
+Az **AI javaslat** gomb csak az üres feliratú képeket küldi el elemzésre az OpenAI API-n keresztül. A felhasználó saját és beépített feliratlistájából választ; bizonytalan esetben üresen hagyja a feliratot. Az API-kulcsot kizárólag szerveroldali Netlify Function használja.
+
+A gomb lenyíló menüjében az **OpenAI (fizetős)** opció külön költség- és adattovábbítási megerősítést kér. Megszakításkor nem indul API-kérés. A **Local AI (inaktív)** opció látható, de a helyi AI bekötéséig letiltott. Az OpenAI-nak legfeljebb 300 kB-os, maximum 1280 pixel hosszabb oldalú képmásolatokat küldünk; a munkában tárolt képek nem változnak.
+
+Netlify-ban állítsd be az `OPENAI_API_KEY` környezeti változót a projekt környezeti változói között, majd készíts új deployt. Helyi próbához az alkalmazás gyökerében lévő, Git által figyelmen kívül hagyott `.env` fájlban add meg ugyanezt a változót. A kulcsot ne tedd a kliensoldali kódba, és ne commitold.
+
+Helyi beállítás:
+
+1. Másold a [`.env.example`](.env.example) fájlt `.env` néven a projekt gyökerébe, a `package.json` mellé, ne az `src` mappába.
+2. Add meg a saját kulcsodat az `OPENAI_API_KEY=` után. Ne használj `VITE_` előtagot.
+3. Indítsd újra a `pnpm dev` szervert. A helyi AI-végpontot a Vite fejlesztői middleware szolgálja ki; a `pnpm preview` önmagában nem futtat Netlify Functions végpontokat.
+
+Netlify-on a kulcsot a projekt **Environment variables** beállításában add meg `OPENAI_API_KEY` néven, a Functions futtatásához és a megfelelő deploy-környezethez engedélyezve, majd indíts új deployt. A helyi `.env` nem kerül feltöltésre. Kulcs nélkül a többi funkció működik, de az OpenAI-javaslat konfigurációs hibát jelez.
+
+A modell jelenleg a [`netlify/functions/suggest-label.ts`](netlify/functions/suggest-label.ts) kódjában rögzített `gpt-4.1-mini`, kérésenként legfeljebb 100 válasz-token mellett. Nincs modellválasztó vagy alkalmazáson belüli pénzügyi keret. A bemeneti szöveg és a kép feldolgozása is fizetős; a képfájl méretkorlátja nem jelent költségkorlátot.
+
+Az AI funkció internetkapcsolatot igényel, képenként API-költséggel jár, és a képeket az OpenAI adatkezelési feltételei szerint továbbítja. A helyi mentés és a többi funkció ettől függetlenül működik offline. Az [OpenAI Platform](https://platform.openai.com/settings/) felületén állíts be költési korlátot, és ellenőrizd, hogy az valóban leállítja-e a kéréseket, nem csak értesít. Nyilvános deploy esetén a Function végpont jelenleg nem kér bejelentkezést és nincs saját kéréskorlátozása; a felületi megerősítés nem védi a végpontot közvetlen hívásoktól. A privát GitHub-repository nem teszi priváttá a Netlify alkalmazást.
+
+### PDF-méret
+
+A PDF-generálás a tárolt képektől független JPEG-másolatokat készít, maximum 1200 pixel hosszabb oldallal és a képszámhoz igazított méretkerettel. A tényleges dokumentumméretet ellenőrzi, és szükség esetén újragenerálja kisebb képekkel. A cél 5 000 000 bájt; a felső korlát 6 000 000 bájt. Ha a korlát nem teljesíthető, hibaüzenet jelenik meg a túl nagy fájl mentése helyett. Sok kép esetén a PDF felbontása és képminősége csökkenhet. A JSON-munkafájl és az AI számára készített másolatok nem a PDF tömörített képeiből készülnek.
+
 ## Technológia
 
 - Vite;
+- Netlify Functions;
 - strict TypeScript;
 - vanilla DOM API;
 - jsPDF;
@@ -79,4 +107,4 @@ Privát repository esetén normál esetben nincs szükség külön deploy keyre:
 
 ## Adatkezelés
 
-Az alkalmazás nem tartalmaz szervert, és nem tölt fel fotókat vagy ingatlanadatokat. A munkamenet a böngésző helyi IndexedDB-adatbázisában, a saját feliratlista localStorage-ban tárolódik. A build minden futásidejű függőséget helyben csomagol, ezért az alkalmazás az első sikeres betöltés után offline is működik.
+A munkamenet a böngésző helyi IndexedDB-adatbázisában, a saját feliratlista és a sablonok localStorage-ban tárolódnak. A hagyományos fotólapkészítés nem tölti fel a képeket vagy ingatlanadatokat. Kivétel az explicit megerősített OpenAI-javaslat: az üres feliratú képek tömörített másolatait és a választható feliratlistát a szerveroldali Netlify Function az OpenAI szolgáltatásának továbbítja. A cím és a helyrajzi szám nem része az AI-kérésnek. A helyi fotólapkészítés az első sikeres betöltés után offline is működik; az OpenAI-javaslat nem.

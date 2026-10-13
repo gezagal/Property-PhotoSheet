@@ -11,6 +11,7 @@ import {
   type TemplateName,
 } from './labels';
 import { buildPdf, formatAddress } from './pdf';
+import { prepareImage } from './images';
 import {
   loadCustomLabels,
   loadLocal,
@@ -73,9 +74,13 @@ const builtInLabels = byId('builtInLabels');
 const saveSessionButton = byId<HTMLButtonElement>('saveSession');
 const openOrderEditorButton = byId<HTMLButtonElement>('openOrderEditor');
 const clearPhotosButton = byId<HTMLButtonElement>('clearPhotos');
+const aiCaptionSuggestionsButton = byId<HTMLButtonElement>('aiCaptionSuggestions');
+const aiSuggestionsMenu = byId('aiSuggestionsMenu');
+const suggestWithOpenAiButton = byId<HTMLButtonElement>('suggestWithOpenAi');
 const newWorkButton = byId<HTMLButtonElement>('newWork');
 const loadingOverlay = byId('loadingOverlay');
 const loadingProgress = byId('loadingProgress');
+const loadingTitle = byId('loadingTitle');
 const photoUploadCard = byId('photoUploadCard');
 const dropZone = byId<HTMLButtonElement>('pickPhotos');
 const togglePhotoUploadButton = byId<HTMLButtonElement>('togglePhotoUpload');
@@ -100,6 +105,7 @@ let orderAutoScrollFrame = 0;
 let orderAutoScrollSpeed = 0;
 let deferredInstall: BeforeInstallPromptEvent | null = null;
 let lockedScrollPosition = 0;
+let suggestingCaptions = false;
 
 const ORDER_AUTO_SCROLL_ZONE = 140;
 const ORDER_AUTO_SCROLL_MAX_SPEED = 22;
@@ -123,7 +129,8 @@ function notify(text: string): void {
   toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2200);
 }
 
-function showLoadingOverlay(current: number, total: number): void {
+function showLoadingOverlay(current: number, total: number, title = 'Képek betöltése…'): void {
+  loadingTitle.textContent = title;
   loadingProgress.textContent = `${current} / ${total}`;
   loadingOverlay.hidden = false;
   document.body.classList.add('loading');
@@ -389,6 +396,7 @@ function renderPhotos(): void {
     if (!photoIds.has(id)) selectedPhotoIds.delete(id);
   });
   updateSelectedPhotoCount();
+  updateAiSuggestionsAvailability();
 
   for (const [index, photo] of photos.entries()) {
     const row = document.createElement('article');
@@ -416,6 +424,7 @@ function renderPhotos(): void {
     input.addEventListener('input', () => {
       renderLabelOptions(input.value);
       photo.caption = input.value;
+      updateAiSuggestionsAvailability();
       image.alt = photo.caption || `${index + 1}. fotó`;
       if (previewBadge) previewBadge.textContent = `${index + 1}. ${photo.caption || '–'}`;
       scheduleSave();
@@ -841,6 +850,92 @@ async function addFiles(files: FileList | File[]): Promise<void> {
   if (failed) notify(`${failed} kép nem tölthető be.`);
 }
 
+async function suggestCaptions(): Promise<void> {
+  if (suggestingCaptions) return;
+  const targets = photos
+    .filter((photo) => !photo.caption.trim())
+    .map((photo) => ({ id: photo.id, dataUrl: photo.dataUrl }));
+  if (!targets.length) {
+    notify('Nincs üres feliratú kép.');
+    return;
+  }
+  if (!window.confirm(
+    `Az OpenAI használata plusz költséggel jár, amelyet az OpenAI API-fiókodban számolnak el.\n\n` +
+    `${targets.length} üres feliratú kép tömörített másolatát továbbítjuk az OpenAI szolgáltatásának elemzésre.\n\n` +
+    `Folytatod a fizetős feliratjavaslatot?`,
+  )) return;
+
+  suggestingCaptions = true;
+  renderPhotos();
+  let suggested = 0;
+  let unmatched = 0;
+  let failed = 0;
+  let failureMessage = '';
+  showLoadingOverlay(0, targets.length, 'AI-feliratjavaslat készítése…');
+
+  try {
+    for (const [index, target] of targets.entries()) {
+      try {
+        const aiImage = await prepareImage(target.dataUrl, 300_000, 1280);
+        const response = await fetch('/.netlify/functions/suggest-label', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: aiImage.dataUrl, labels: allLabels(customLabels) }),
+          signal: AbortSignal.timeout(45_000),
+        });
+        const result: unknown = await response.json();
+        if (!response.ok) {
+          const message = result && typeof result === 'object' && 'error' in result &&
+            typeof result.error === 'string'
+            ? result.error
+            : `A feliratjavaslat kérése sikertelen (HTTP ${response.status}).`;
+          throw new Error(message);
+        }
+        if (
+          !result ||
+          typeof result !== 'object' ||
+          !('label' in result) ||
+          (result.label !== null && typeof result.label !== 'string')
+        ) {
+          throw new Error('Érvénytelen választ adott az AI-felirat szolgáltatás.');
+        }
+
+        const photo = photos.find((item) => item.id === target.id);
+        if (photo && !photo.caption.trim()) {
+          if (typeof result.label === 'string' && allLabels(customLabels).includes(result.label)) {
+            photo.caption = result.label;
+            suggested += 1;
+            scheduleSave();
+          } else {
+            unmatched += 1;
+          }
+        }
+        renderPhotos();
+      } catch (error) {
+        failed += 1;
+        failureMessage ||= errorMessage(error);
+        break;
+      } finally {
+        showLoadingOverlay(index + 1, targets.length, 'AI-feliratjavaslat készítése…');
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+    }
+  } finally {
+    suggestingCaptions = false;
+    hideLoadingOverlay();
+    renderPhotos();
+    if (suggested || unmatched) scheduleSave();
+  }
+
+  if (failed) {
+    notify(failureMessage || 'Az AI-feliratjavaslat kérése sikertelen.');
+  } else if (unmatched) {
+    notify(`${suggested} felirat javasolva; ${unmatched} képnél nem volt biztos találat.`);
+  } else {
+    notify(`${suggested} AI-feliratjavaslat elkészült.`);
+  }
+}
+
 function applyTemplate(name: TemplateName): void {
   photos.forEach((photo, index) => {
     photo.caption = templates[name][index] ?? '';
@@ -1001,6 +1096,51 @@ dropZone.addEventListener('drop', async (event) => {
 
 byId('flatTemplate').addEventListener('click', () => applyTemplate('lakás'));
 byId('houseTemplate').addEventListener('click', () => applyTemplate('ház'));
+function updateAiSuggestionsAvailability(): void {
+  aiCaptionSuggestionsButton.disabled = suggestingCaptions || !photos.some((photo) => !photo.caption.trim());
+  suggestWithOpenAiButton.disabled = aiCaptionSuggestionsButton.disabled;
+  if (aiCaptionSuggestionsButton.disabled) closeAiSuggestionsMenu();
+}
+
+function closeAiSuggestionsMenu(): void {
+  aiSuggestionsMenu.hidden = true;
+  aiCaptionSuggestionsButton.setAttribute('aria-expanded', 'false');
+}
+
+aiCaptionSuggestionsButton.addEventListener('click', (event) => {
+  event.stopPropagation();
+  closeSettingsMenu();
+  const willOpen = aiSuggestionsMenu.hidden;
+  aiSuggestionsMenu.hidden = !willOpen;
+  aiCaptionSuggestionsButton.setAttribute('aria-expanded', String(willOpen));
+});
+aiSuggestionsMenu.addEventListener('click', (event) => event.stopPropagation());
+suggestWithOpenAiButton.addEventListener('click', () => {
+  closeAiSuggestionsMenu();
+  aiCaptionSuggestionsButton.focus();
+  void suggestCaptions();
+});
+document.addEventListener('click', closeAiSuggestionsMenu);
+document.addEventListener('focusin', (event) => {
+  if (event.target instanceof Node && !aiSuggestionsMenu.parentElement?.contains(event.target)) {
+    closeAiSuggestionsMenu();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !aiSuggestionsMenu.hidden) {
+    closeAiSuggestionsMenu();
+    aiCaptionSuggestionsButton.focus();
+  }
+});
+aiCaptionSuggestionsButton.addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    closeSettingsMenu();
+    aiSuggestionsMenu.hidden = false;
+    aiCaptionSuggestionsButton.setAttribute('aria-expanded', 'true');
+    suggestWithOpenAiButton.focus();
+  }
+});
 byId('clearCaptions').addEventListener('click', () => {
   if (!photos.some((photo) => photo.caption) || window.confirm('Biztosan törlöd az összes fotó feliratát?')) {
     photos.forEach((photo) => {
@@ -1116,6 +1256,7 @@ clearPhotosButton.addEventListener('click', () => {
 
 settingsButton.addEventListener('click', (event) => {
   event.stopPropagation();
+  closeAiSuggestionsMenu();
   const willOpen = settingsMenu.hidden;
   settingsMenu.hidden = !willOpen;
   settingsButton.setAttribute('aria-expanded', String(willOpen));
