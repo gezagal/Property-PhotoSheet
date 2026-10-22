@@ -99,6 +99,10 @@ let saveTimer = 0;
 let toastTimer = 0;
 let draggedPhotoId: string | null = null;
 let draggedPhotoIds: string[] = [];
+let orderDropTarget: { id: string; after: boolean } | null = null;
+let orderDragSlots: Array<{ left: number; top: number; width: number; height: number }> = [];
+let orderDragPointer: { x: number; y: number } | null = null;
+let photoDragContainer: HTMLElement | null = null;
 const selectedPhotoIds = new Set<string>();
 let draggedTemplateItem: { name: TemplateName; index: number } | null = null;
 let orderAutoScrollFrame = 0;
@@ -308,26 +312,136 @@ function movePhoto(fromIndex: number, toIndex: number): void {
 
   const [photo] = photos.splice(fromIndex, 1);
   photos.splice(toIndex, 0, photo);
+  selectedPhotoIds.clear();
   renderPhotos();
   scheduleSave();
 }
 
-function movePhotoGroup(photoIds: string[], targetId: string): void {
+function photoGroupPlacement(photoIds: string[], targetId: string, after: boolean) {
   const movingIds = new Set(photoIds);
-  if (!movingIds.size || movingIds.has(targetId)) return;
+  if (!movingIds.size || movingIds.has(targetId)) return null;
 
   const movingPhotos = photos.filter((photo) => movingIds.has(photo.id));
   const remainingPhotos = photos.filter((photo) => !movingIds.has(photo.id));
   const targetIndex = remainingPhotos.findIndex((photo) => photo.id === targetId);
-  if (!movingPhotos.length || targetIndex < 0) return;
+  if (!movingPhotos.length || targetIndex < 0) return null;
 
+  const insertionIndex = targetIndex + (after ? 1 : 0);
   const reordered = [...remainingPhotos];
-  reordered.splice(targetIndex, 0, ...movingPhotos);
-  if (reordered.every((photo, index) => photo.id === photos[index]?.id)) return;
+  reordered.splice(insertionIndex, 0, ...movingPhotos);
+  if (reordered.every((photo, index) => photo.id === photos[index]?.id)) return null;
+  return { reordered, insertionIndex, count: movingPhotos.length };
+}
 
-  photos = reordered;
+function movePhotoGroup(photoIds: string[], targetId: string, after: boolean): void {
+  const placement = photoGroupPlacement(photoIds, targetId, after);
+  if (!placement) return;
+
+  photos = placement.reordered;
+  selectedPhotoIds.clear();
   renderPhotos();
   scheduleSave();
+}
+
+function clearOrderDropPreview(): void {
+  orderDropTarget = null;
+  [miniPreview, photoList].forEach((container) => {
+    container.classList.remove('previewing-drop');
+    container.querySelectorAll('.order-drop-placeholder').forEach((item) => item.remove());
+    container.querySelectorAll<HTMLElement>('[data-photo-id]').forEach((item) => {
+      item.style.removeProperty('order');
+    });
+  });
+}
+
+function isOutside(element: HTMLElement, event: MouseEvent): boolean {
+  const bounds = element.getBoundingClientRect();
+  return event.clientX < bounds.left || event.clientX > bounds.right ||
+    event.clientY < bounds.top || event.clientY > bounds.bottom;
+}
+
+function beginPhotoDrag(container: HTMLElement, photoIds: string[]): void {
+  photoDragContainer = container;
+  draggedPhotoIds = photoIds;
+  draggedPhotoId = photoIds[0] ?? null;
+  const bounds = container.getBoundingClientRect();
+  const items = Array.from(container.querySelectorAll<HTMLElement>('[data-photo-id]'));
+  orderDragSlots = items.map((item) => {
+    const slot = item.getBoundingClientRect();
+    return { left: slot.left - bounds.left, top: slot.top - bounds.top, width: slot.width, height: slot.height };
+  });
+  items.forEach((item) => item.classList.toggle('dragging', photoIds.includes(item.dataset.photoId ?? '')));
+}
+
+function showOrderDropPreview(target: HTMLElement, targetId: string, after: boolean): void {
+  const container = photoDragContainer;
+  if (!container) return;
+  if (orderDropTarget?.id === targetId && orderDropTarget.after === after) return;
+  const placement = photoGroupPlacement(draggedPhotoIds, targetId, after);
+  if (!placement) {
+    clearOrderDropPreview();
+    return;
+  }
+
+  const height = target.getBoundingClientRect().height;
+  const items = new Map(
+    Array.from(container.querySelectorAll<HTMLElement>('[data-photo-id]'))
+      .map((item) => [item.dataset.photoId, item]),
+  );
+  container.querySelectorAll('.order-drop-placeholder').forEach((item) => item.remove());
+  placement.reordered.forEach((photo, index) => {
+    if (draggedPhotoIds.includes(photo.id)) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'order-drop-placeholder';
+      placeholder.style.order = String(index);
+      placeholder.style.height = `${height}px`;
+      placeholder.setAttribute('aria-hidden', 'true');
+      container.append(placeholder);
+    } else {
+      const item = items.get(photo.id);
+      if (item) item.style.order = String(index);
+    }
+  });
+  orderDropTarget = { id: targetId, after };
+  container.classList.add('previewing-drop');
+}
+
+function updateOrderDropPreview(pointerX: number, pointerY: number): void {
+  if (!photoDragContainer || !orderDragSlots.length) return;
+  orderDragPointer = { x: pointerX, y: pointerY };
+  const bounds = photoDragContainer.getBoundingClientRect();
+  const x = pointerX - bounds.left;
+  const y = pointerY - bounds.top;
+  let closestIndex = 0;
+  let closestDistance = Infinity;
+  // Frozen slots prevent shifted cards from changing the target under a stationary pointer.
+  orderDragSlots.forEach((slot, index) => {
+    const distance = Math.hypot(x - slot.left - slot.width / 2, y - slot.top - slot.height / 2);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index;
+    }
+  });
+  const remainingPhotos = photos.filter((photo) => !draggedPhotoIds.includes(photo.id));
+  if (!remainingPhotos.length) return;
+  const insertionIndex = Math.min(closestIndex, remainingPhotos.length);
+  const targetPhoto = remainingPhotos[Math.min(insertionIndex, remainingPhotos.length - 1)];
+  const target = Array.from(photoDragContainer.querySelectorAll<HTMLElement>('[data-photo-id]'))
+    .find((item) => item.dataset.photoId === targetPhoto.id);
+  if (target) showOrderDropPreview(target, targetPhoto.id, insertionIndex === remainingPhotos.length);
+}
+
+function finishOrderDrag(): void {
+  stopOrderAutoScroll();
+  clearOrderDropPreview();
+  draggedPhotoId = null;
+  draggedPhotoIds = [];
+  orderDragSlots = [];
+  orderDragPointer = null;
+  photoDragContainer = null;
+  [miniPreview, photoList].forEach((container) => {
+    container.querySelectorAll('.dragging').forEach((element) => element.classList.remove('dragging'));
+  });
 }
 
 function updateSelectedPhotoCount(): void {
@@ -389,6 +503,7 @@ function createRowButton(
 }
 
 function renderPhotos(): void {
+  clearOrderDropPreview();
   photoList.replaceChildren();
   miniPreview.replaceChildren();
   const photoIds = new Set(photos.map((photo) => photo.id));
@@ -443,35 +558,18 @@ function renderPhotos(): void {
     );
 
     row.addEventListener('dragstart', (event) => {
-      draggedPhotoId = photo.id;
-      draggedPhotoIds = [photo.id];
-      row.classList.add('dragging');
+      beginPhotoDrag(photoList, [photo.id]);
       event.dataTransfer?.setData('text/plain', photo.id);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     });
-    row.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      if (draggedPhotoId !== photo.id) row.classList.add('drag-over');
-    });
-    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
-    row.addEventListener('drop', (event) => {
-      event.preventDefault();
-      row.classList.remove('drag-over');
-      const sourceId = draggedPhotoId ?? event.dataTransfer?.getData('text/plain');
-      movePhoto(photos.findIndex((item) => item.id === sourceId), index);
-    });
-    row.addEventListener('dragend', () => {
-      draggedPhotoId = null;
-      draggedPhotoIds = [];
-      row.classList.remove('dragging');
-      photoList.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
-    });
+    row.addEventListener('dragend', finishOrderDrag);
 
     row.append(number, image, input, actions);
     photoList.append(row);
 
     const previewItem = document.createElement('div');
     previewItem.className = 'mini-preview-item';
+    previewItem.dataset.photoId = photo.id;
     previewItem.draggable = true;
     const previewImage = document.createElement('img');
     previewImage.src = photo.dataUrl;
@@ -525,53 +623,14 @@ function renderPhotos(): void {
     if (selectedPhotoIds.has(photo.id)) previewItem.classList.add('selected');
     previewItem.append(previewImage, badge, previewActions, deletePreviewButton, selectPreviewButton);
     previewItem.addEventListener('dragstart', (event) => {
-      draggedPhotoId = photo.id;
-      draggedPhotoIds = selectedPhotoIds.has(photo.id)
+      const movingIds = selectedPhotoIds.has(photo.id)
         ? photos.filter((item) => selectedPhotoIds.has(item.id)).map((item) => item.id)
         : [photo.id];
-      previewItem.classList.add('dragging');
+      beginPhotoDrag(miniPreview, movingIds);
       event.dataTransfer?.setData('text/plain', JSON.stringify(draggedPhotoIds));
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     });
-    previewItem.addEventListener('dragenter', (event) => {
-      event.preventDefault();
-      if (draggedPhotoId !== photo.id) previewItem.classList.add('drag-over');
-    });
-    previewItem.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    });
-    previewItem.addEventListener('dragleave', (event) => {
-      if (!previewItem.contains(event.relatedTarget as Node | null)) {
-        previewItem.classList.remove('drag-over');
-      }
-    });
-    previewItem.addEventListener('drop', (event) => {
-      event.preventDefault();
-      stopOrderAutoScroll();
-      previewItem.classList.remove('drag-over');
-      const transferredIds = event.dataTransfer?.getData('text/plain');
-      let sourceIds = draggedPhotoIds;
-      if (!sourceIds.length && transferredIds) {
-        try {
-          const parsed: unknown = JSON.parse(transferredIds);
-          if (Array.isArray(parsed) && parsed.every((id): id is string => typeof id === 'string')) {
-            sourceIds = parsed;
-          }
-        } catch {
-          sourceIds = [transferredIds];
-        }
-      }
-      if (!sourceIds.length && draggedPhotoId) sourceIds = [draggedPhotoId];
-      movePhotoGroup(sourceIds, photo.id);
-    });
-    previewItem.addEventListener('dragend', () => {
-      stopOrderAutoScroll();
-      draggedPhotoId = null;
-      draggedPhotoIds = [];
-      previewItem.classList.remove('dragging');
-      miniPreview.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
-    });
+    previewItem.addEventListener('dragend', finishOrderDrag);
     miniPreview.append(previewItem);
   }
 
@@ -1236,15 +1295,51 @@ byId('savePdfFromPreview').addEventListener('click', () => {
 
 openOrderEditorButton.addEventListener('click', () => openDialog(orderDialog));
 byId('closeOrderEditor').addEventListener('click', () => orderDialog.close());
+[miniPreview, photoList].forEach((container) => {
+  container.addEventListener('dragover', (event) => {
+    if (photoDragContainer !== container) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    updateOrderDropPreview(event.clientX, event.clientY);
+  });
+  container.addEventListener('dragleave', (event) => {
+    if (photoDragContainer === container && isOutside(container, event)) {
+      orderDragPointer = null;
+      clearOrderDropPreview();
+    }
+  });
+  container.addEventListener('drop', (event) => {
+    if (photoDragContainer !== container) return;
+    event.preventDefault();
+    if (orderDropTarget) movePhotoGroup(draggedPhotoIds, orderDropTarget.id, orderDropTarget.after);
+    finishOrderDrag();
+  });
+});
+orderDialogContent.addEventListener('scroll', () => {
+  if (orderDragPointer) updateOrderDropPreview(orderDragPointer.x, orderDragPointer.y);
+});
+window.addEventListener('scroll', () => {
+  if (photoDragContainer === photoList && orderDragPointer) {
+    updateOrderDropPreview(orderDragPointer.x, orderDragPointer.y);
+  }
+});
 orderDialog.addEventListener('dragover', (event) => {
   if (!draggedPhotoId) return;
   event.preventDefault();
   updateOrderAutoScroll(event.clientY);
+  if (!(event.target instanceof Node) || !miniPreview.contains(event.target)) {
+    orderDragPointer = null;
+    clearOrderDropPreview();
+  }
 });
 orderDialog.addEventListener('dragleave', (event) => {
-  if (!orderDialog.contains(event.relatedTarget as Node | null)) stopOrderAutoScroll();
+  if (isOutside(orderDialog, event)) {
+    stopOrderAutoScroll();
+    orderDragPointer = null;
+    clearOrderDropPreview();
+  }
 });
-orderDialog.addEventListener('drop', stopOrderAutoScroll);
+orderDialog.addEventListener('drop', finishOrderDrag);
 clearPhotosButton.addEventListener('click', () => {
   if (!photos.length || !window.confirm(`Biztosan törlöd mind a(z) ${photos.length} képet?`)) return;
   photos = [];
@@ -1309,7 +1404,7 @@ byId('resetTemplate').addEventListener('click', () => {
 [orderDialog, previewDialog, labelsDialog, templatesDialog].forEach((dialog) => {
   dialog.addEventListener('close', unlockPageScroll);
 });
-orderDialog.addEventListener('close', stopOrderAutoScroll);
+orderDialog.addEventListener('close', finishOrderDrag);
 
 addressInput.addEventListener('input', () => {
   updateStatus();

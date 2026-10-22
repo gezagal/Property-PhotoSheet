@@ -11,6 +11,7 @@ Felhasználói leírás: [`public/user-guide.html`](public/user-guide.html)
 - automatikus átméretezés és JPEG-tömörítés;
 - külön sorrendszerkesztő ablak, Windows alatt húzással, mobilon fel/le gombokkal;
 - kijelölt fotók csoportos áthelyezése húzással, az egymáshoz viszonyított sorrend megtartásával;
+- húzás közben halványkék üres keretes helyelőnézet a sorrendszerkesztőben és a fotósorok listájában, a többi elem odébb rendezésével; sikeres áthelyezés után automatikus kijelöléstörlés;
 - az összes betöltött kép egy művelettel, megerősítés után törölhető;
 - szabad, beépített és felhasználó által bővíthető képfeliratok;
 - külön AI-javaslat gomb az üres feliratú képek felismeréséhez;

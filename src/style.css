@@ -485,8 +485,14 @@ input::placeholder {
   opacity: .25;
 }
 
-.photo-row.drag-over {
-  outline: 2px solid #2d5a3d;
+.photo-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.photo-list > .add-photo-row {
+  order: 2147483647;
 }
 
 .photo-row img {
@@ -606,11 +612,6 @@ input::placeholder {
 
 .mini-preview-item.dragging {
   opacity: .35;
-}
-
-.mini-preview-item.drag-over {
-  border-color: #2d5a3d;
-  box-shadow: 0 0 0 2px #2d5a3d;
 }
 
 .mini-preview-item.selected {
@@ -845,8 +846,26 @@ dialog > :not(.dialog-toolbar)::-webkit-scrollbar-thumb:hover {
 }
 
 .order-grid {
+  position: relative;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 10px;
+}
+
+.order-drop-placeholder {
+  min-width: 0;
+  border: 2px dashed #a8c2e4;
+  border-radius: 8px;
+  background: #e7effa;
+  box-shadow: inset 0 0 0 3px rgb(255 255 255 / 40%);
+}
+
+.previewing-drop .dragging {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 130px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .order-grid .mini-preview-item {
