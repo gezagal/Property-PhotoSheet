@@ -330,12 +330,60 @@ input::placeholder {
 
 .photo-upload-toggle {
   min-width: 128px;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
-.photo-upload-toggle span {
-  display: inline-block;
-  margin-left: 4px;
-  font-size: 1.05rem;
+.photo-upload-chevron {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border: 1px solid #dce5e9;
+  border-radius: 50%;
+  color: #345968;
+  background: #f0f5f7;
+  transition: background .18s, border-color .18s;
+}
+
+.photo-upload-chevron svg {
+  width: 18px;
+  height: 18px;
+  transition: transform .2s ease;
+}
+
+.photo-upload-toggle[aria-expanded="true"] .photo-upload-chevron svg {
+  transform: rotate(180deg);
+}
+
+.photo-upload-toggle:hover .photo-upload-chevron {
+  border-color: #a9bec9;
+  background: #e3edf2;
+}
+
+.photo-upload-card {
+  position: relative;
+}
+
+.photo-upload-card.collapsed .photo-upload-toggle::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+}
+
+.photo-upload-card.collapsed:has(.photo-upload-toggle:hover),
+.photo-upload-card.collapsed:has(.photo-upload-toggle:focus-visible) {
+  border-color: #a9bec9;
+  background: #f8fbfc;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-upload-chevron,
+  .photo-upload-chevron svg {
+    transition: none;
+  }
 }
 
 .photo-upload-card.collapsed {
@@ -612,6 +660,15 @@ input::placeholder {
 
 .mini-preview-item.dragging {
   opacity: .35;
+}
+
+.order-grid.photo-drag-preview,
+.photo-list.photo-drag-preview {
+  position: fixed;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  pointer-events: none;
 }
 
 .mini-preview-item.selected {

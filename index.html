@@ -21,7 +21,7 @@
     </div>
     <div class="header-copy">
       <span class="eyebrow">Property PhotoSheet</span>
-      <h1>Ingatlan Fotólap Generátor <span class="version">v1.0</span></h1>
+      <h1>Ingatlan Fotólap Generátor <span class="version">v2.3</span></h1>
       <p class="subtitle">Gyors, helyben működő fotólap-készítő ingatlan-értékbecsléshez</p>
       <div class="header-features" aria-label="Fő funkciók">
         <span>6 fotó / oldal</span>
@@ -55,7 +55,10 @@
     <div class="photo-upload-heading">
       <strong>Képek feltöltése</strong>
       <button id="togglePhotoUpload" class="btn light photo-upload-toggle" type="button" aria-controls="pickPhotos" aria-expanded="true">
-        Összecsukás <span aria-hidden="true">⌃</span>
+        <span id="photoUploadToggleLabel">Összecsukás</span>
+        <span class="photo-upload-chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </span>
       </button>
     </div>
     <button id="pickPhotos" class="drop-zone" type="button">

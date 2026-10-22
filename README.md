@@ -1,5 +1,7 @@
 # Property PhotoSheet
 
+Aktuális kiadás: **2.3.0** (a felületen **v2.3**).
+
 Telepíthető, offline használható ingatlan-fotólap készítő értékbecslésekhez.
 Windows az elsődleges célplatform, az érintőképernyős használat iPhone-on is támogatott.
 

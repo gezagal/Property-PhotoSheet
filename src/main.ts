@@ -236,9 +236,7 @@ function renderPhotoUploadSection(): void {
   photoUploadCard.classList.toggle('collapsed', !photoUploadExpanded);
   dropZone.hidden = !photoUploadExpanded;
   togglePhotoUploadButton.setAttribute('aria-expanded', String(photoUploadExpanded));
-  togglePhotoUploadButton.innerHTML = photoUploadExpanded
-    ? 'Összecsukás <span aria-hidden="true">⌃</span>'
-    : 'Kinyitás <span aria-hidden="true">⌄</span>';
+  byId('photoUploadToggleLabel').textContent = photoUploadExpanded ? 'Összecsukás' : 'Kinyitás';
 }
 
 function errorMessage(error: unknown): string {
@@ -418,6 +416,35 @@ function isOutside(element: HTMLElement, event: MouseEvent): boolean {
   const bounds = element.getBoundingClientRect();
   return event.clientX < bounds.left || event.clientX > bounds.right ||
     event.clientY < bounds.top || event.clientY > bounds.bottom;
+}
+
+function setPhotoDragPreview(event: DragEvent, item: HTMLElement): void {
+  if (!event.dataTransfer || reducedPhotoMotion.matches) return;
+  const bounds = item.getBoundingClientRect();
+  const scale = 1.03;
+  const preview = document.createElement('div');
+  preview.className = item.classList.contains('photo-row')
+    ? 'photo-list photo-drag-preview'
+    : 'order-grid photo-drag-preview';
+  preview.setAttribute('aria-hidden', 'true');
+  preview.inert = true;
+  preview.style.width = `${bounds.width * scale}px`;
+  preview.style.height = `${bounds.height * scale}px`;
+  const clone = item.cloneNode(true);
+  if (!(clone instanceof HTMLElement)) return;
+  clone.classList.remove('dragging');
+  clone.style.width = `${bounds.width}px`;
+  clone.style.height = `${bounds.height}px`;
+  clone.style.transform = `scale(${scale})`;
+  clone.style.transformOrigin = 'top left';
+  preview.append(clone);
+  document.body.append(preview);
+  event.dataTransfer.setDragImage(
+    preview,
+    (event.clientX - bounds.left) * scale,
+    (event.clientY - bounds.top) * scale,
+  );
+  requestAnimationFrame(() => preview.remove());
 }
 
 function beginPhotoDrag(container: HTMLElement, photoIds: string[]): void {
@@ -639,6 +666,7 @@ function renderPhotos(): void {
     );
 
     row.addEventListener('dragstart', (event) => {
+      setPhotoDragPreview(event, row);
       beginPhotoDrag(photoList, [photo.id]);
       event.dataTransfer?.setData('text/plain', photo.id);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
@@ -709,6 +737,7 @@ function renderPhotos(): void {
     previewItem.append(previewImage, badge, previewActions, deletePreviewButton, selectPreviewButton);
     previewItem.addEventListener('dragstart', (event) => {
       dragged = true;
+      setPhotoDragPreview(event, previewItem);
       const movingIds = selectedPhotoIds.has(photo.id)
         ? photos.filter((item) => selectedPhotoIds.has(item.id)).map((item) => item.id)
         : [photo.id];
