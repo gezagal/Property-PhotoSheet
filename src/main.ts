@@ -113,6 +113,63 @@ let suggestingCaptions = false;
 
 const ORDER_AUTO_SCROLL_ZONE = 140;
 const ORDER_AUTO_SCROLL_MAX_SPEED = 22;
+const reducedPhotoMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const photoMoveAnimations = new Map<HTMLElement, Animation>();
+
+function capturePhotoPositions(container: HTMLElement): Map<string, { left: number; top: number }> {
+  const bounds = container.getBoundingClientRect();
+  const positions = new Map<string, { left: number; top: number }>();
+  container.querySelectorAll<HTMLElement>('[data-photo-id]:not(.dragging)').forEach((item) => {
+    const rect = item.getBoundingClientRect();
+    if (item.dataset.photoId && rect.width && rect.height) {
+      positions.set(item.dataset.photoId, { left: rect.left - bounds.left, top: rect.top - bounds.top });
+    }
+  });
+  return positions;
+}
+
+function animatePhotoPositions(
+  container: HTMLElement,
+  previous: Map<string, { left: number; top: number }>,
+): void {
+  photoMoveAnimations.forEach((animation, item) => {
+    if (container.contains(item) || !item.isConnected) {
+      animation.cancel();
+      photoMoveAnimations.delete(item);
+    }
+  });
+  if (reducedPhotoMotion.matches) return;
+  const bounds = container.getBoundingClientRect();
+  container.querySelectorAll<HTMLElement>('[data-photo-id]:not(.dragging)').forEach((item) => {
+    const from = previous.get(item.dataset.photoId ?? '');
+    if (!from) return;
+    const rect = item.getBoundingClientRect();
+    const x = from.left - (rect.left - bounds.left);
+    const y = from.top - (rect.top - bounds.top);
+    if (Math.abs(x) < 1 && Math.abs(y) < 1) return;
+    const animation = item.animate(
+      [{ transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0, 0)' }],
+      { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+    );
+    photoMoveAnimations.set(item, animation);
+    animation.onfinish = () => {
+      if (photoMoveAnimations.get(item) === animation) photoMoveAnimations.delete(item);
+    };
+  });
+}
+
+function renderReorderedPhotos(): void {
+  const containers = [miniPreview, photoList];
+  const positions = containers.map(capturePhotoPositions);
+  renderPhotos();
+  containers.forEach((container, index) => animatePhotoPositions(container, positions[index]));
+}
+
+reducedPhotoMotion.addEventListener('change', () => {
+  if (!reducedPhotoMotion.matches) return;
+  photoMoveAnimations.forEach((animation) => animation.cancel());
+  photoMoveAnimations.clear();
+});
 
 function currentSession(): SessionData {
   return {
@@ -313,7 +370,7 @@ function movePhoto(fromIndex: number, toIndex: number): void {
   const [photo] = photos.splice(fromIndex, 1);
   photos.splice(toIndex, 0, photo);
   selectedPhotoIds.clear();
-  renderPhotos();
+  renderReorderedPhotos();
   scheduleSave();
 }
 
@@ -339,18 +396,21 @@ function movePhotoGroup(photoIds: string[], targetId: string, after: boolean): v
 
   photos = placement.reordered;
   selectedPhotoIds.clear();
-  renderPhotos();
+  renderReorderedPhotos();
   scheduleSave();
 }
 
-function clearOrderDropPreview(): void {
+function clearOrderDropPreview(animate = true): void {
   orderDropTarget = null;
   [miniPreview, photoList].forEach((container) => {
+    const positions = animate && container.classList.contains('previewing-drop')
+      ? capturePhotoPositions(container) : null;
     container.classList.remove('previewing-drop');
     container.querySelectorAll('.order-drop-placeholder').forEach((item) => item.remove());
     container.querySelectorAll<HTMLElement>('[data-photo-id]').forEach((item) => {
       item.style.removeProperty('order');
     });
+    if (positions) animatePhotoPositions(container, positions);
   });
 }
 
@@ -361,6 +421,8 @@ function isOutside(element: HTMLElement, event: MouseEvent): boolean {
 }
 
 function beginPhotoDrag(container: HTMLElement, photoIds: string[]): void {
+  photoMoveAnimations.forEach((animation) => animation.cancel());
+  photoMoveAnimations.clear();
   photoDragContainer = container;
   draggedPhotoIds = photoIds;
   draggedPhotoId = photoIds[0] ?? null;
@@ -384,6 +446,7 @@ function showOrderDropPreview(target: HTMLElement, targetId: string, after: bool
   }
 
   const height = target.getBoundingClientRect().height;
+  const positions = capturePhotoPositions(container);
   const items = new Map(
     Array.from(container.querySelectorAll<HTMLElement>('[data-photo-id]'))
       .map((item) => [item.dataset.photoId, item]),
@@ -404,6 +467,7 @@ function showOrderDropPreview(target: HTMLElement, targetId: string, after: bool
   });
   orderDropTarget = { id: targetId, after };
   container.classList.add('previewing-drop');
+  animatePhotoPositions(container, positions);
 }
 
 function updateOrderDropPreview(pointerX: number, pointerY: number): void {
@@ -447,6 +511,21 @@ function finishOrderDrag(): void {
 function updateSelectedPhotoCount(): void {
   const count = selectedPhotoIds.size;
   selectedPhotoCount.textContent = `${count} ${count === 1 ? 'kép kijelölve' : 'kép kijelölve'}`;
+}
+
+function togglePhotoSelection(photoId: string): void {
+  if (selectedPhotoIds.has(photoId)) selectedPhotoIds.delete(photoId);
+  else selectedPhotoIds.add(photoId);
+  miniPreview.querySelectorAll<HTMLElement>('.mini-preview-item').forEach((item) => {
+    const selected = selectedPhotoIds.has(item.dataset.photoId ?? '');
+    item.classList.toggle('selected', selected);
+    const button = item.querySelector<HTMLButtonElement>('.mini-preview-select');
+    if (!button) return;
+    button.textContent = selected ? '✓' : '○';
+    button.title = selected ? 'Kijelölés megszüntetése' : 'Kép kijelölése';
+    button.setAttribute('aria-checked', String(selected));
+  });
+  updateSelectedPhotoCount();
 }
 
 function stopOrderAutoScroll(): void {
@@ -503,7 +582,9 @@ function createRowButton(
 }
 
 function renderPhotos(): void {
-  clearOrderDropPreview();
+  clearOrderDropPreview(false);
+  photoMoveAnimations.forEach((animation) => animation.cancel());
+  photoMoveAnimations.clear();
   photoList.replaceChildren();
   miniPreview.replaceChildren();
   const photoIds = new Set(photos.map((photo) => photo.id));
@@ -616,13 +697,18 @@ function renderPhotos(): void {
     selectPreviewButton.addEventListener('dragstart', (event) => event.preventDefault());
     selectPreviewButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      if (selectedPhotoIds.has(photo.id)) selectedPhotoIds.delete(photo.id);
-      else selectedPhotoIds.add(photo.id);
-      renderPhotos();
+      togglePhotoSelection(photo.id);
+    });
+    let dragged = false;
+    previewItem.addEventListener('pointerdown', () => { dragged = false; });
+    previewItem.addEventListener('click', (event) => {
+      if (dragged || (event.target instanceof Element && event.target.closest('button'))) return;
+      togglePhotoSelection(photo.id);
     });
     if (selectedPhotoIds.has(photo.id)) previewItem.classList.add('selected');
     previewItem.append(previewImage, badge, previewActions, deletePreviewButton, selectPreviewButton);
     previewItem.addEventListener('dragstart', (event) => {
+      dragged = true;
       const movingIds = selectedPhotoIds.has(photo.id)
         ? photos.filter((item) => selectedPhotoIds.has(item.id)).map((item) => item.id)
         : [photo.id];

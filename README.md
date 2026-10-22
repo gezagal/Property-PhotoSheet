@@ -12,6 +12,7 @@ Felhasználói leírás: [`public/user-guide.html`](public/user-guide.html)
 - külön sorrendszerkesztő ablak, Windows alatt húzással, mobilon fel/le gombokkal;
 - kijelölt fotók csoportos áthelyezése húzással, az egymáshoz viszonyított sorrend megtartásával;
 - húzás közben halványkék üres keretes helyelőnézet a sorrendszerkesztőben és a fotósorok listájában, a többi elem odébb rendezésével; sikeres áthelyezés után automatikus kijelöléstörlés;
+- képre kattintásos kijelölés a sorrendszerkesztőben, finoman animált átrendezés mindkét fotónézetben (a csökkentett mozgás beállítását tiszteletben tartva);
 - az összes betöltött kép egy művelettel, megerősítés után törölhető;
 - szabad, beépített és felhasználó által bővíthető képfeliratok;
 - külön AI-javaslat gomb az üres feliratú képek felismeréséhez;

@@ -935,7 +935,8 @@ dialog > :not(.dialog-toolbar)::-webkit-scrollbar-thumb:hover {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .order-grid .mini-preview-actions {
+  .order-grid .mini-preview-actions,
+  .photo-list .move-photo {
     display: none;
   }
 
